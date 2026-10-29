@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
@@ -72,18 +71,17 @@ import com.example.esfocar.ui.viewmodel.UserViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterUserScreen(userViewModel: UserViewModel) {
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var rut by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(User.ROLE_DOCENTE) }
 
     var expandedRoleMenu by remember { mutableStateOf(false) }
 
-    // Estados de acordeón / desplegables
-    var isRegisterFormExpanded by remember { mutableStateOf(true) }
-    var isUserListExpanded by remember { mutableStateOf(true) }
+    // Estados de acordeón / desplegables (CERRADOS POR DEFECTO COMO SOLICITÓ EL USUARIO)
+    var isRegisterFormExpanded by remember { mutableStateOf(false) }
+    var isUserListExpanded by remember { mutableStateOf(false) }
 
     val registerState by userViewModel.registerState.collectAsState()
     val usersList by userViewModel.usersList.collectAsState()
@@ -157,7 +155,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
         }
 
         // ==========================================
-        // PARTE 1: REGISTRO DE USUARIOS (Desplegable)
+        // PARTE 1: REGISTRO DE USUARIOS (CERRADO POR DEFECTO)
         // ==========================================
         Card(
             modifier = Modifier
@@ -210,7 +208,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "Formulario de ingreso de docentes e instructores",
+                                text = "Formulario de ingreso con correo y contraseña",
                                 fontSize = 11.sp,
                                 color = Color(0xFF405247)
                             )
@@ -301,19 +299,19 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                             else -> {}
                         }
 
-                        // Campo Username
+                        // Campo Email (Login)
                         OutlinedTextField(
-                            value = username,
+                            value = email,
                             onValueChange = {
-                                username = it
+                                email = it
                                 userViewModel.resetRegisterState()
                             },
-                            label = { Text("Nombre de Usuario (Login)") },
-                            leadingIcon = { Icon(imageVector = Icons.Default.Person, contentDescription = null) },
+                            label = { Text("Correo Institucional (@esfocar.cl)") },
+                            leadingIcon = { Icon(imageVector = Icons.Default.Email, contentDescription = null) },
                             singleLine = true,
                             colors = customFieldColors,
                             shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -349,35 +347,19 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Campo RUT
+                        // Campo RUT (ÚNICO en SQLite)
                         OutlinedTextField(
                             value = rut,
                             onValueChange = {
                                 rut = it
                                 userViewModel.resetRegisterState()
                             },
-                            label = { Text("RUT (Ej: 12.345.678-9)") },
+                            label = { Text("RUT (Ej: 12.345.678-9 - Único)") },
                             leadingIcon = { Icon(imageVector = Icons.Default.Badge, contentDescription = null) },
                             singleLine = true,
                             colors = customFieldColors,
                             shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        // Campo Email
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = {
-                                email = it
-                                userViewModel.resetRegisterState()
-                            },
-                            label = { Text("Correo Institucional (@esfocar.cl)") },
-                            leadingIcon = { Icon(imageVector = Icons.Default.Email, contentDescription = null) },
-                            singleLine = true,
-                            colors = customFieldColors,
-                            shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -420,16 +402,14 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
 
                         Button(
                             onClick = {
-                                userViewModel.registerUser(
-                                    username = username,
+                                val success = userViewModel.registerUser(
                                     tempPassword = password,
                                     fullName = fullName,
                                     rut = rut,
                                     email = email,
                                     role = role
                                 )
-                                if (registerState is RegisterUserState.Success) {
-                                    username = ""
+                                if (success) {
                                     password = ""
                                     fullName = ""
                                     rut = ""
@@ -465,7 +445,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
         }
 
         // ===============================================
-        // PARTE 2: LISTA DE USUARIOS REGISTRADOS (Desplegable)
+        // PARTE 2: LISTA DE USUARIOS REGISTRADOS (CERRADO POR DEFECTO)
         // ===============================================
         Card(
             modifier = Modifier
@@ -564,7 +544,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                                             color = Color(0xFF111C16)
                                         )
                                         Text(
-                                            text = "@${user.username} • ${user.email} • RUT: ${user.rut}",
+                                            text = "${user.email} • RUT: ${user.rut}",
                                             fontSize = 12.sp,
                                             color = Color(0xFF405247)
                                         )

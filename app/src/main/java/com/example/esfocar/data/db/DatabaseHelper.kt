@@ -14,12 +14,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         const val DATABASE_NAME = "esfocar.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         // Tabla Usuarios
         const val TABLE_USERS = "users"
         const val COLUMN_USER_ID = "id"
-        const val COLUMN_USER_USERNAME = "username"
         const val COLUMN_USER_PASSWORD = "password"
         const val COLUMN_USER_FULL_NAME = "full_name"
         const val COLUMN_USER_RUT = "rut"
@@ -39,15 +38,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_DOC_UPLOAD_DATE = "upload_date"
         const val COLUMN_DOC_UPLOADED_BY = "uploaded_by_user_id"
 
-        // Script SQL Creación Tabla Usuarios
+        // Script SQL Creación Tabla Usuarios (Correo y RUT como campos ÚNICOS)
         val CREATE_TABLE_USERS = """
             CREATE TABLE $TABLE_USERS (
                 $COLUMN_USER_ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                $COLUMN_USER_USERNAME TEXT UNIQUE NOT NULL,
+                $COLUMN_USER_EMAIL TEXT UNIQUE NOT NULL,
                 $COLUMN_USER_PASSWORD TEXT NOT NULL,
                 $COLUMN_USER_FULL_NAME TEXT NOT NULL,
-                $COLUMN_USER_RUT TEXT NOT NULL,
-                $COLUMN_USER_EMAIL TEXT NOT NULL,
+                $COLUMN_USER_RUT TEXT UNIQUE NOT NULL,
                 $COLUMN_USER_ROLE TEXT NOT NULL DEFAULT '${User.ROLE_DOCENTE}',
                 $COLUMN_USER_IS_FIRST_LOGIN INTEGER NOT NULL DEFAULT 1,
                 $COLUMN_USER_CREATED_AT TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
@@ -71,14 +69,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        // Habilitar claves foráneas
         db.execSQL("PRAGMA foreign_keys=ON;")
-        
-        // Ejecutar creación de tablas
         db.execSQL(CREATE_TABLE_USERS)
         db.execSQL(CREATE_TABLE_DOCUMENTS)
-
-        // Insertar los 3 Administradores por defecto
         insertDefaultAdmins(db)
     }
 
@@ -99,29 +92,26 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     private fun insertDefaultAdmins(db: SQLiteDatabase) {
         val defaultAdmins = listOf(
             ContentValues().apply {
-                put(COLUMN_USER_USERNAME, "admin1")
+                put(COLUMN_USER_EMAIL, "admin1@esfocar.cl")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Cmdte. Juan Pérez (Admin 1)")
                 put(COLUMN_USER_RUT, "11.111.111-1")
-                put(COLUMN_USER_EMAIL, "admin1@esfocar.cl")
                 put(COLUMN_USER_ROLE, User.ROLE_ADMIN)
                 put(COLUMN_USER_IS_FIRST_LOGIN, 0)
             },
             ContentValues().apply {
-                put(COLUMN_USER_USERNAME, "admin2")
+                put(COLUMN_USER_EMAIL, "admin2@esfocar.cl")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Capitán María González (Admin 2)")
                 put(COLUMN_USER_RUT, "22.222.222-2")
-                put(COLUMN_USER_EMAIL, "admin2@esfocar.cl")
                 put(COLUMN_USER_ROLE, User.ROLE_ADMIN)
                 put(COLUMN_USER_IS_FIRST_LOGIN, 0)
             },
             ContentValues().apply {
-                put(COLUMN_USER_USERNAME, "admin3")
+                put(COLUMN_USER_EMAIL, "admin3@esfocar.cl")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Teniente Carlos Rojas (Admin 3)")
                 put(COLUMN_USER_RUT, "33.333.333-3")
-                put(COLUMN_USER_EMAIL, "admin3@esfocar.cl")
                 put(COLUMN_USER_ROLE, User.ROLE_ADMIN)
                 put(COLUMN_USER_IS_FIRST_LOGIN, 1) // Para probar flujo de primer cambio de clave
             }
