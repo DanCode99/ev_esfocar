@@ -1,6 +1,7 @@
 package com.example.esfocar.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -42,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -54,7 +56,7 @@ import com.example.esfocar.ui.viewmodel.AuthViewModel
 
 @Composable
 fun LoginScreen(authViewModel: AuthViewModel) {
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
@@ -65,17 +67,19 @@ fun LoginScreen(authViewModel: AuthViewModel) {
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         focusedLabelColor = MaterialTheme.colorScheme.primary,
         focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedContainerColor = MaterialTheme.colorScheme.surface,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+        unfocusedBorderColor = Color(0xFFA6BCB0),
+        unfocusedLabelColor = Color(0xFF405247),
+        unfocusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        focusedTextColor = Color(0xFF111C16),
+        unfocusedTextColor = Color(0xFF111C16)
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color.White) // FONDO BLANCO PURO
             .verticalScroll(scrollState)
     ) {
         // Encabezado Institucional Verde Carabineros
@@ -84,7 +88,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                 .fillMaxWidth()
                 .background(
                     color = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(bottomEnd = 28.dp)
+                    shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
                 .padding(vertical = 36.dp, horizontal = 20.dp),
             contentAlignment = Alignment.Center
@@ -93,7 +97,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                 Icon(
                     imageVector = Icons.Default.Shield,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
+                    tint = MaterialTheme.colorScheme.secondary, // Dorado
                     modifier = Modifier.size(68.dp)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
@@ -101,14 +105,14 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                     text = "ESFOCAR",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = Color.White,
                     letterSpacing = 3.sp
                 )
                 Text(
                     text = "Escuela de Formación de Carabineros",
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                    color = Color.White.copy(alpha = 0.9f)
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -119,16 +123,23 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Card Formulario de Inicio de Sesión
+        // Formulario de Login
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(16.dp)
+                ),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF2F8F5)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -171,22 +182,22 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                     }
                 }
 
-                // Campo Usuario
+                // Campo Correo Institucional
                 OutlinedTextField(
-                    value = username,
+                    value = email,
                     onValueChange = {
-                        username = it
+                        email = it
                         authViewModel.clearError()
                     },
-                    label = { Text("Nombre de usuario / RUT") },
+                    label = { Text("Correo Institucional (@esfocar.cl)") },
                     leadingIcon = {
-                        Icon(imageVector = Icons.Default.Person, contentDescription = null)
+                        Icon(imageVector = Icons.Default.Email, contentDescription = null)
                     },
                     singleLine = true,
                     colors = customFieldColors,
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
+                        keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
                     ),
                     modifier = Modifier.fillMaxWidth()
@@ -208,7 +219,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                             Icon(
                                 imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                 contentDescription = "Mostrar contraseña",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     },
@@ -228,7 +239,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                 // Botón Ingresar
                 Button(
                     onClick = {
-                        authViewModel.login(username, password)
+                        authViewModel.login(email, password)
                     },
                     enabled = authState !is AuthState.Loading,
                     modifier = Modifier
@@ -237,12 +248,12 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                        contentColor = Color.White
                     )
                 ) {
                     if (authState is AuthState.Loading) {
                         CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     } else {
@@ -258,5 +269,32 @@ fun LoginScreen(authViewModel: AuthViewModel) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // Tarjeta Informativa Acceso Rápido con Correos
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFE2F0E8)
+            )
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "Acceso Rápido de Prueba (Administradores SQLite):",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "• Admin 1: admin1@esfocar.cl / admin123 (Acceso directo)\n• Admin 3: admin3@esfocar.cl / admin123 (Prueba cambio de clave)",
+                    fontSize = 12.sp,
+                    color = Color(0xFF003824)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

@@ -24,9 +24,13 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    fun login(usernameInput: String, passwordInput: String) {
-        if (usernameInput.isBlank()) {
-            _authState.value = AuthState.Error("Por favor, ingrese el nombre de usuario.")
+    fun login(emailInput: String, passwordInput: String) {
+        if (emailInput.isBlank()) {
+            _authState.value = AuthState.Error("Por favor, ingrese su correo institucional.")
+            return
+        }
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailInput.trim()).matches()) {
+            _authState.value = AuthState.Error("Ingrese un formato de correo electrónico válido.")
             return
         }
         if (passwordInput.isBlank()) {
@@ -36,7 +40,7 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
 
         _authState.value = AuthState.Loading
 
-        val user = userRepository.authenticate(usernameInput, passwordInput)
+        val user = userRepository.authenticate(emailInput, passwordInput)
         if (user != null) {
             _currentUser.value = user
             if (user.requiresPasswordChange) {
@@ -45,7 +49,7 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
                 _authState.value = AuthState.Authenticated(user)
             }
         } else {
-            _authState.value = AuthState.Error("Credenciales incorrectas. Verifique su usuario y contraseña.")
+            _authState.value = AuthState.Error("Credenciales incorrectas. Verifique su correo y contraseña.")
         }
     }
 

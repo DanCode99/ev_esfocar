@@ -32,53 +32,52 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
     }
 
     fun registerUser(
-        username: String,
         tempPassword: String,
         fullName: String,
         rut: String,
         email: String,
         role: String
-    ) {
-        if (username.isBlank() || username.length < 3) {
-            _registerState.value = RegisterUserState.Error("El nombre de usuario debe tener al menos 3 caracteres.")
-            return
+    ): Boolean {
+        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            _registerState.value = RegisterUserState.Error("Ingrese un correo electrónico institucional válido.")
+            return false
         }
         if (tempPassword.isBlank() || tempPassword.length < 6) {
             _registerState.value = RegisterUserState.Error("La contraseña temporal debe tener al menos 6 caracteres.")
-            return
+            return false
         }
         if (fullName.isBlank()) {
             _registerState.value = RegisterUserState.Error("El nombre completo es obligatorio.")
-            return
+            return false
         }
         if (rut.isBlank()) {
             _registerState.value = RegisterUserState.Error("El RUT es obligatorio.")
-            return
-        }
-        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            _registerState.value = RegisterUserState.Error("Ingrese un correo electrónico institucional válido.")
-            return
+            return false
         }
 
         _registerState.value = RegisterUserState.Loading
 
         val newUser = User(
-            username = username,
+            email = email.trim().lowercase(),
             password = tempPassword,
             fullName = fullName,
-            rut = rut,
-            email = email,
+            rut = rut.trim().uppercase(),
             role = role,
             isFirstLogin = 1 // Debe cambiar su clave en primer inicio
         )
 
         val result = userRepository.createUser(newUser)
-        result.onSuccess {
-            _registerState.value = RegisterUserState.Success("Usuario '${newUser.username}' creado con éxito.")
-            loadUsers()
-        }.onFailure { ex ->
-            _registerState.value = RegisterUserState.Error(ex.message ?: "Error al registrar el usuario.")
-        }
+        return result.fold(
+            onSuccess = {
+                _registerState.value = RegisterUserState.Success("Usuario '${newUser.fullName}' creado con éxito.")
+                loadUsers()
+                true
+            },
+            onFailure = { ex ->
+                _registerState.value = RegisterUserState.Error(ex.message ?: "Error al registrar el usuario.")
+                false
+            }
+        )
     }
 
     fun resetRegisterState() {
