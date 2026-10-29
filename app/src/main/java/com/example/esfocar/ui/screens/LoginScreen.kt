@@ -87,8 +87,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                    color = MaterialTheme.colorScheme.primary
                 )
                 .padding(vertical = 36.dp, horizontal = 20.dp),
             contentAlignment = Alignment.Center
@@ -189,7 +188,7 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                         email = it
                         authViewModel.clearError()
                     },
-                    label = { Text("Correo Institucional (@esfocar.cl)") },
+                    label = { Text("Correo Institucional") },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Email, contentDescription = null)
                     },
@@ -268,33 +267,5 @@ fun LoginScreen(authViewModel: AuthViewModel) {
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-
-        // Tarjeta Informativa Acceso Rápido con Correos
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFE2F0E8)
-            )
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = "Acceso Rápido de Prueba (Administradores SQLite):",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "• Admin 1: admin1@esfocar.cl / admin123 (Acceso directo)\n• Admin 3: admin3@esfocar.cl / admin123 (Prueba cambio de clave)",
-                    fontSize = 12.sp,
-                    color = Color(0xFF003824)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }

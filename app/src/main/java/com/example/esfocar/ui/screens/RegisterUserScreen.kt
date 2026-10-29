@@ -331,7 +331,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                                 email = it
                                 userViewModel.resetRegisterState()
                             },
-                            label = { Text("Correo Institucional (@esfocar.cl)") },
+                            label = { Text("Correo") },
                             leadingIcon = { Icon(imageVector = Icons.Default.Email, contentDescription = null) },
                             singleLine = true,
                             colors = customFieldColors,

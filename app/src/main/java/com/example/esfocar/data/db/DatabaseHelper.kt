@@ -92,7 +92,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     private fun insertDefaultAdmins(db: SQLiteDatabase) {
         val defaultAdmins = listOf(
             ContentValues().apply {
-                put(COLUMN_USER_EMAIL, "admin1@esfocar.cl")
+                put(COLUMN_USER_EMAIL, "admin1@gmail.com")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Cmdte. Juan Pérez (Admin 1)")
                 put(COLUMN_USER_RUT, "11.111.111-1")
@@ -100,7 +100,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 put(COLUMN_USER_IS_FIRST_LOGIN, 0)
             },
             ContentValues().apply {
-                put(COLUMN_USER_EMAIL, "admin2@esfocar.cl")
+                put(COLUMN_USER_EMAIL, "admin2@gmail.com")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Capitán María González (Admin 2)")
                 put(COLUMN_USER_RUT, "22.222.222-2")
@@ -108,7 +108,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 put(COLUMN_USER_IS_FIRST_LOGIN, 0)
             },
             ContentValues().apply {
-                put(COLUMN_USER_EMAIL, "admin3@esfocar.cl")
+                put(COLUMN_USER_EMAIL, "admin3@gmail.com")
                 put(COLUMN_USER_PASSWORD, "admin123")
                 put(COLUMN_USER_FULL_NAME, "Teniente Carlos Rojas (Admin 3)")
                 put(COLUMN_USER_RUT, "33.333.333-3")
