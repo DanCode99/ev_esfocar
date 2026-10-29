@@ -68,6 +68,31 @@ import com.example.esfocar.data.model.User
 import com.example.esfocar.ui.viewmodel.RegisterUserState
 import com.example.esfocar.ui.viewmodel.UserViewModel
 
+/**
+ * Formatea automáticamente el número ingresado al estándar de RUT Chileno (XX.XXX.XXX-X).
+ */
+fun formatRutChilean(rawInput: String): String {
+    val cleaned = rawInput.filter { it.isDigit() || it == 'k' || it == 'K' }.take(9)
+    if (cleaned.isEmpty()) return ""
+
+    if (cleaned.length == 1) return cleaned.uppercase()
+
+    val dv = cleaned.last().uppercaseChar()
+    val body = cleaned.dropLast(1)
+
+    val formattedBody = StringBuilder()
+    var count = 0
+    for (i in body.length - 1 downTo 0) {
+        if (count > 0 && count % 3 == 0) {
+            formattedBody.insert(0, '.')
+        }
+        formattedBody.insert(0, body[i])
+        count++
+    }
+
+    return "$formattedBody-$dv"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterUserScreen(userViewModel: UserViewModel) {
@@ -79,7 +104,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
 
     var expandedRoleMenu by remember { mutableStateOf(false) }
 
-    // Estados de acordeón / desplegables (CERRADOS POR DEFECTO COMO SOLICITÓ EL USUARIO)
+    // Estados de acordeón / desplegables (CERRADOS POR DEFECTO)
     var isRegisterFormExpanded by remember { mutableStateOf(false) }
     var isUserListExpanded by remember { mutableStateOf(false) }
 
@@ -347,19 +372,23 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Campo RUT (ÚNICO en SQLite)
+                        // Campo RUT (Con AUTO-FORMATO de Puntos y Guión)
                         OutlinedTextField(
                             value = rut,
-                            onValueChange = {
-                                rut = it
+                            onValueChange = { input ->
+                                rut = formatRutChilean(input)
                                 userViewModel.resetRegisterState()
                             },
-                            label = { Text("RUT (Ej: 12.345.678-9 - Único)") },
+                            label = { Text("RUT (Ej: 12.345.678-K)") },
+                            placeholder = { Text("12.345.678-K") },
                             leadingIcon = { Icon(imageVector = Icons.Default.Badge, contentDescription = null) },
                             singleLine = true,
                             colors = customFieldColors,
                             shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Done
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         )
 
