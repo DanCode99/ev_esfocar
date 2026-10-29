@@ -82,13 +82,11 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             .background(Color.White) // FONDO BLANCO PURO
             .verticalScroll(scrollState)
     ) {
-        // Encabezado Institucional Verde Carabineros
+        // Encabezado Institucional Verde Carabineros (Bordes Rectos sin Redondear)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    color = MaterialTheme.colorScheme.primary
-                )
+                .background(color = MaterialTheme.colorScheme.primary)
                 .padding(vertical = 36.dp, horizontal = 20.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -181,14 +179,15 @@ fun LoginScreen(authViewModel: AuthViewModel) {
                     }
                 }
 
-                // Campo Correo Institucional
+                // Campo Correo Electrónico
                 OutlinedTextField(
                     value = email,
                     onValueChange = {
                         email = it
                         authViewModel.clearError()
                     },
-                    label = { Text("Correo Institucional") },
+                    label = { Text("Correo Electrónico") },
+                    placeholder = { Text("ejemplo@gmail.com") },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Email, contentDescription = null)
                     },
@@ -266,6 +265,6 @@ fun LoginScreen(authViewModel: AuthViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
