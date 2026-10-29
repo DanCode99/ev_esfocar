@@ -14,7 +14,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         const val DATABASE_NAME = "esfocar.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         // Tabla Usuarios
         const val TABLE_USERS = "users"
@@ -87,7 +87,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     /**
-     * Inserta los 3 usuarios administradores obligatorios por defecto.
+     * Inserta los 3 usuarios administradores obligatorios por defecto con correos @gmail.com.
      */
     private fun insertDefaultAdmins(db: SQLiteDatabase) {
         val defaultAdmins = listOf(
