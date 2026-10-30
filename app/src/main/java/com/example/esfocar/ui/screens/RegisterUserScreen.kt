@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,7 +52,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,7 +69,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.esfocar.data.model.User
+import com.example.esfocar.ui.viewmodel.AuthViewModel
 import com.example.esfocar.ui.viewmodel.RegisterUserState
+import com.example.esfocar.ui.viewmodel.UpdateUserState
 import com.example.esfocar.ui.viewmodel.UserViewModel
 
 /**
@@ -95,7 +101,7 @@ fun formatRutChilean(rawInput: String): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterUserScreen(userViewModel: UserViewModel) {
+fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
@@ -107,6 +113,9 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
     // Estados de acordeón / desplegables (CERRADOS POR DEFECTO)
     var isRegisterFormExpanded by remember { mutableStateOf(false) }
     var isUserListExpanded by remember { mutableStateOf(false) }
+    val updateState by userViewModel.updateState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    var userToEdit by remember { mutableStateOf<User?>(null) }
 
     val registerState by userViewModel.registerState.collectAsState()
     val usersList by userViewModel.usersList.collectAsState()
@@ -126,6 +135,71 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
         focusedTextColor = Color(0xFF111C16),
         unfocusedTextColor = Color(0xFF111C16)
     )
+
+    // DIÁLOGO DE EDICIÓN
+    if (userToEdit != null) {
+        var editEmail by remember { mutableStateOf(userToEdit!!.email) }
+        var editFullName by remember { mutableStateOf(userToEdit!!.fullName) }
+        var editRut by remember { mutableStateOf(userToEdit!!.rut) }
+        var editRole by remember { mutableStateOf(userToEdit!!.role) }
+        var editExpandedRoleMenu by remember { mutableStateOf(false) }
+
+        // Cerrar dialog y limpiar estado al tener éxito
+        LaunchedEffect(updateState) {
+            if (updateState is UpdateUserState.Success) {
+                if (userToEdit?.id == currentUser?.id) {
+                    authViewModel.refreshCurrentUser()
+                }
+                userToEdit = null
+                userViewModel.resetUpdateState()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                userToEdit = null
+                userViewModel.resetUpdateState()
+            },
+            containerColor = Color.White,
+            title = { Text("Editar Usuario", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (updateState is UpdateUserState.Error) {
+                        Text(
+                            text = (updateState as UpdateUserState.Error).message,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedTextField(value = editEmail, onValueChange = { editEmail = it; userViewModel.resetUpdateState() }, label = { Text("Correo") }, colors = customFieldColors, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editFullName, onValueChange = { editFullName = it; userViewModel.resetUpdateState() }, label = { Text("Nombre Completo") }, colors = customFieldColors, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = editRut, onValueChange = { editRut = formatRutChilean(it); userViewModel.resetUpdateState() }, label = { Text("RUT") }, colors = customFieldColors, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                    ExposedDropdownMenuBox(expanded = editExpandedRoleMenu, onExpandedChange = { editExpandedRoleMenu = !editExpandedRoleMenu }) {
+                        OutlinedTextField(value = editRole, onValueChange = {}, readOnly = true, label = { Text("Rol") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = editExpandedRoleMenu) }, colors = customFieldColors, modifier = Modifier.menuAnchor().fillMaxWidth())
+                        ExposedDropdownMenu(expanded = editExpandedRoleMenu, onDismissRequest = { editExpandedRoleMenu = false }) {
+                            listOf(User.ROLE_DOCENTE, User.ROLE_INSTRUCTOR, User.ROLE_ADMIN).forEach { itemRole ->
+                                DropdownMenuItem(text = { Text(itemRole) }, onClick = { editRole = itemRole; editExpandedRoleMenu = false })
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { userViewModel.updateUser(userToEdit!!.id, editFullName, editRut, editEmail, editRole) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    if (updateState is UpdateUserState.Loading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp) else Text("Guardar Cambios")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToEdit = null; userViewModel.resetUpdateState() }) { Text("Cancelar", color = Color.Gray) }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -532,6 +606,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                                 color = Color(0xFF405247)
                             )
                         }
+
                     }
 
                     IconButton(onClick = { isUserListExpanded = !isUserListExpanded }) {
@@ -544,7 +619,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                     }
                 }
 
-                // Contenido de la Lista (Animado al Desplegar)
+// Contenido de la Lista (Animado al Desplegar)
                 AnimatedVisibility(
                     visible = isUserListExpanded,
                     enter = expandVertically() + fadeIn(),
@@ -573,28 +648,51 @@ fun RegisterUserScreen(userViewModel: UserViewModel) {
                                             color = Color(0xFF111C16)
                                         )
                                         Text(
-                                            text = "${user.email} • RUT: ${user.rut}",
+                                            text = "${user.email}\nRUT: ${user.rut}",
                                             fontSize = 12.sp,
                                             color = Color(0xFF405247)
                                         )
                                     }
-                                    Box(
-                                        modifier = Modifier
-                                            .background(
-                                                color = if (user.isAdmin) MaterialTheme.colorScheme.secondary
-                                                else MaterialTheme.colorScheme.primary,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp) // <--- Distancia entre ambos
                                     ) {
-                                        Text(
-                                            text = user.role,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
+                                        // Etiqueta de Rol
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    color = if (user.isAdmin) MaterialTheme.colorScheme.secondary
+                                                    else MaterialTheme.colorScheme.primary,
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = user.role,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+
+                                        // Botón de Editar
+                                        IconButton(
+                                            onClick = { userToEdit = user },
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(Color(0xFFE2F0E8), RoundedCornerShape(6.dp))
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Edit,
+                                                contentDescription = "Editar",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
+
                                 if (index < usersList.size - 1) {
                                     HorizontalDivider(color = Color(0xFFD0E2D7))
                                 }

@@ -78,13 +78,7 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
 
         val success = userRepository.updatePassword(user.id, newPasswordInput)
         if (success) {
-            val updatedUser = userRepository.getUserById(user.id)
-            if (updatedUser != null) {
-                _currentUser.value = updatedUser
-                _authState.value = AuthState.Authenticated(updatedUser)
-            } else {
-                _authState.value = AuthState.Error("Error al recargar datos del usuario.")
-            }
+            refreshCurrentUser()
         } else {
             _authState.value = AuthState.Error("Error al actualizar la contraseña en la base de datos.")
         }
@@ -98,6 +92,24 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
     fun clearError() {
         if (_authState.value is AuthState.Error) {
             _authState.value = AuthState.Idle
+        }
+    }
+
+    /*
+    * Refresca los datos del usuario en sesión actual.
+    * Útil cuando el administrador modifica su propio perfil.
+    */
+    fun refreshCurrentUser() {
+        val currentId = _currentUser.value?.id ?: return
+        val updatedUser = userRepository.getUserById(currentId)
+        if (updatedUser != null) {
+            _currentUser.value = updatedUser
+            val currentState = _authState.value
+            if (currentState is AuthState.Authenticated) {
+                _authState.value = AuthState.Authenticated(updatedUser)
+            } else if (currentState is AuthState.RequiresPasswordChange) {
+                _authState.value = AuthState.RequiresPasswordChange(updatedUser)
+            }
         }
     }
 

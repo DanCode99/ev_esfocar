@@ -249,11 +249,7 @@ fun MainContainer() {
                         documentViewModel = documentViewModel
                     )
                 }
-                Screen.REGISTER_USER -> {
-                    RegisterUserScreen(
-                        userViewModel = userViewModel
-                    )
-                }
+                Screen.REGISTER_USER -> RegisterUserScreen(userViewModel, authViewModel)
             }
         }
     }

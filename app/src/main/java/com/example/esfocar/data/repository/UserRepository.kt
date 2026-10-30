@@ -100,6 +100,43 @@ class UserRepository(private val dbHelper: DatabaseHelper) {
     }
 
     /**
+     * Actualiza los datos de un usuario existente.
+     * Valida que el nuevo RUT o Correo no pertenezcan a otra cuenta.
+     */
+    fun updateUser(userId: Long, fullName: String, rut: String, email: String, role: String): Result<Boolean> {
+        val db = dbHelper.writableDatabase
+        val normalizedEmail = email.trim().lowercase()
+        val normalizedRut = rut.trim().uppercase()
+
+        val existingEmailUser = getUserByEmail(normalizedEmail)
+        if (existingEmailUser != null && existingEmailUser.id != userId) {
+            return Result.failure(Exception("El correo '$normalizedEmail' ya está en uso por otro usuario."))
+        }
+
+        val existingRutUser = getUserByRut(normalizedRut)
+        if (existingRutUser != null && existingRutUser.id != userId) {
+            return Result.failure(Exception("El RUT '$normalizedRut' ya está en uso por otro usuario."))
+        }
+
+        val values = ContentValues().apply {
+            put(DatabaseHelper.COLUMN_USER_EMAIL, normalizedEmail)
+            put(DatabaseHelper.COLUMN_USER_FULL_NAME, fullName.trim())
+            put(DatabaseHelper.COLUMN_USER_RUT, normalizedRut)
+            put(DatabaseHelper.COLUMN_USER_ROLE, role)
+        }
+
+        val rowsUpdated = db.update(
+            DatabaseHelper.TABLE_USERS,
+            values,
+            "${DatabaseHelper.COLUMN_USER_ID} = ?",
+            arrayOf(userId.toString())
+        )
+
+        return if (rowsUpdated > 0) Result.success(true)
+        else Result.failure(Exception("No se encontró el usuario para actualizar."))
+    }
+
+    /**
      * Actualiza la contraseña del usuario y marca is_first_login = 0.
      */
     fun updatePassword(userId: Long, newPassword: String): Boolean {

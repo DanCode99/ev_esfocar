@@ -15,6 +15,13 @@ sealed class RegisterUserState {
     data class Error(val message: String) : RegisterUserState()
 }
 
+sealed class UpdateUserState {
+    object Idle : UpdateUserState()
+    object Loading : UpdateUserState()
+    data class Success(val message: String) : UpdateUserState()
+    data class Error(val message: String) : UpdateUserState()
+}
+
 class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
 
     private val _registerState = MutableStateFlow<RegisterUserState>(RegisterUserState.Idle)
@@ -22,6 +29,9 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
 
     private val _usersList = MutableStateFlow<List<User>>(emptyList())
     val usersList: StateFlow<List<User>> = _usersList.asStateFlow()
+
+    private val _updateState = MutableStateFlow<UpdateUserState>(UpdateUserState.Idle)
+    val updateState: StateFlow<UpdateUserState> = _updateState.asStateFlow()
 
     init {
         loadUsers()
@@ -78,6 +88,40 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
                 false
             }
         )
+    }
+
+    fun updateUser(userId: Long, fullName: String, rut: String, email: String, role: String): Boolean {
+        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            _updateState.value = UpdateUserState.Error("Ingrese un correo electrónico válido.")
+            return false
+        }
+        if (fullName.isBlank()) {
+            _updateState.value = UpdateUserState.Error("El nombre completo es obligatorio.")
+            return false
+        }
+        if (rut.isBlank()) {
+            _updateState.value = UpdateUserState.Error("El RUT es obligatorio.")
+            return false
+        }
+
+        _updateState.value = UpdateUserState.Loading
+        val result = userRepository.updateUser(userId, fullName, rut, email, role)
+
+        return result.fold(
+            onSuccess = {
+                _updateState.value = UpdateUserState.Success("Usuario actualizado con éxito.")
+                loadUsers()
+                true
+            },
+            onFailure = { ex ->
+                _updateState.value = UpdateUserState.Error(ex.message ?: "Error al actualizar.")
+                false
+            }
+        )
+    }
+
+    fun resetUpdateState() {
+        _updateState.value = UpdateUserState.Idle
     }
 
     fun resetRegisterState() {
