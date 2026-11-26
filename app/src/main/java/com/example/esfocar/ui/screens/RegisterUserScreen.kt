@@ -106,7 +106,7 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
     var password by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var rut by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf(User.ROLE_DOCENTE) }
+    var role by remember { mutableStateOf(User.ROLE_ESTUDIANTE) }
 
     var expandedRoleMenu by remember { mutableStateOf(false) }
 
@@ -120,7 +120,13 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
     val registerState by userViewModel.registerState.collectAsState()
     val usersList by userViewModel.usersList.collectAsState()
 
-    val rolesList = listOf(User.ROLE_DOCENTE, User.ROLE_INSTRUCTOR, User.ROLE_ADMIN)
+    val rolesList = listOf(
+        User.ROLE_ESTUDIANTE,
+        User.ROLE_PROFESOR,
+        User.ROLE_DOCENTE,
+        User.ROLE_INSTRUCTOR,
+        User.ROLE_ADMIN
+    )
     val scrollState = rememberScrollState()
 
     val customFieldColors = OutlinedTextFieldDefaults.colors(
@@ -180,7 +186,13 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
                     ExposedDropdownMenuBox(expanded = editExpandedRoleMenu, onExpandedChange = { editExpandedRoleMenu = !editExpandedRoleMenu }) {
                         OutlinedTextField(value = editRole, onValueChange = {}, readOnly = true, label = { Text("Rol") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = editExpandedRoleMenu) }, colors = customFieldColors, modifier = Modifier.menuAnchor().fillMaxWidth())
                         ExposedDropdownMenu(expanded = editExpandedRoleMenu, onDismissRequest = { editExpandedRoleMenu = false }) {
-                            listOf(User.ROLE_DOCENTE, User.ROLE_INSTRUCTOR, User.ROLE_ADMIN).forEach { itemRole ->
+                            listOf(
+                                User.ROLE_ESTUDIANTE,
+                                User.ROLE_PROFESOR,
+                                User.ROLE_DOCENTE,
+                                User.ROLE_INSTRUCTOR,
+                                User.ROLE_ADMIN
+                            ).forEach { itemRole ->
                                 DropdownMenuItem(text = { Text(itemRole) }, onClick = { editRole = itemRole; editExpandedRoleMenu = false })
                             }
                         }
