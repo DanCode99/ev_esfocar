@@ -6,15 +6,18 @@ import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.DocumentItem
 
 /**
- * Repositorio de Documentos para operaciones SQLite.
+ * Repositorio de Documentos para operaciones SQLite (Fase 2 - Offline First).
  */
 class DocumentRepository(private val dbHelper: DatabaseHelper) {
 
     /**
      * Guarda el registro de un nuevo documento en la base de datos SQLite.
+     * @param offline Si es true, establece sincronizado = 0; si es false, sincronizado = 1.
      */
-    fun insertDocument(document: DocumentItem): Long {
+    fun insertDocument(document: DocumentItem, offline: Boolean = false): Long {
         val db = dbHelper.writableDatabase
+        val syncValue = if (offline) 0 else 1
+
         val values = ContentValues().apply {
             put(DatabaseHelper.COLUMN_DOC_TITLE, document.title.trim())
             put(DatabaseHelper.COLUMN_DOC_FILE_NAME, document.fileName)
@@ -23,6 +26,7 @@ class DocumentRepository(private val dbHelper: DatabaseHelper) {
             put(DatabaseHelper.COLUMN_DOC_FILE_SIZE, document.fileSize)
             put(DatabaseHelper.COLUMN_DOC_UPLOAD_DATE, document.uploadDate)
             put(DatabaseHelper.COLUMN_DOC_UPLOADED_BY, document.uploadedByUserId)
+            put(DatabaseHelper.COLUMN_DOC_SINCRONIZADO, syncValue)
         }
         return db.insert(DatabaseHelper.TABLE_DOCUMENTS, null, values)
     }
@@ -48,6 +52,46 @@ class DocumentRepository(private val dbHelper: DatabaseHelper) {
             }
         }
         return list
+    }
+
+    /**
+     * Obtiene documentos pendientes de sincronizar (sincronizado = 0).
+     */
+    fun getUnsyncedDocuments(): List<DocumentItem> {
+        val list = mutableListOf<DocumentItem>()
+        val db = dbHelper.readableDatabase
+
+        val query = """
+            SELECT d.*, u.${DatabaseHelper.COLUMN_USER_FULL_NAME} AS u_name
+            FROM ${DatabaseHelper.TABLE_DOCUMENTS} d
+            LEFT JOIN ${DatabaseHelper.TABLE_USERS} u ON d.${DatabaseHelper.COLUMN_DOC_UPLOADED_BY} = u.${DatabaseHelper.COLUMN_USER_ID}
+            WHERE d.${DatabaseHelper.COLUMN_DOC_SINCRONIZADO} = 0
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, null)
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(cursorToDocument(it))
+            }
+        }
+        return list
+    }
+
+    /**
+     * Marca un documento como sincronizado en SQLite (sincronizado = 1).
+     */
+    fun markAsSynced(documentId: Long): Boolean {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(DatabaseHelper.COLUMN_DOC_SINCRONIZADO, 1)
+        }
+        val rows = db.update(
+            DatabaseHelper.TABLE_DOCUMENTS,
+            values,
+            "${DatabaseHelper.COLUMN_DOC_ID} = ?",
+            arrayOf(documentId.toString())
+        )
+        return rows > 0
     }
 
     /**
