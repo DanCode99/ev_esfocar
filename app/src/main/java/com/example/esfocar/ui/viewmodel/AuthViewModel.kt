@@ -29,7 +29,8 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
             _authState.value = AuthState.Error("Por favor, ingrese su correo institucional.")
             return
         }
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailInput.trim()).matches()) {
+        val emailTrimmed = emailInput.trim()
+        if (!emailTrimmed.contains("@") || !emailTrimmed.substringAfter("@").contains(".")) {
             _authState.value = AuthState.Error("Ingrese un formato de correo electrónico válido.")
             return
         }

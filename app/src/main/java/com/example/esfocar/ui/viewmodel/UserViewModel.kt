@@ -48,7 +48,8 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         email: String,
         role: String
     ): Boolean {
-        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+        val emailTrimmed = email.trim()
+        if (emailTrimmed.isBlank() || !emailTrimmed.contains("@") || !emailTrimmed.substringAfter("@").contains(".")) {
             _registerState.value = RegisterUserState.Error("Ingrese un correo electrónico institucional válido.")
             return false
         }
