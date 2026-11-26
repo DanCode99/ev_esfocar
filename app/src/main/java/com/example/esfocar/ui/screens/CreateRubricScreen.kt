@@ -89,6 +89,29 @@ fun CreateRubricScreen(
     val rubricaState by rubricaViewModel.rubricaState.collectAsState()
     val scrollState = rememberScrollState()
 
+    // Animación de desplazamiento hacia arriba al publicar o al ocurrir un error
+    androidx.compose.runtime.LaunchedEffect(rubricaState) {
+        when (rubricaState) {
+            is RubricaState.Error -> {
+                scrollState.animateScrollTo(0)
+            }
+            is RubricaState.Success -> {
+                titulo = ""
+                descripcion = ""
+                borradorCriterios.clear()
+                borradorCriterios.addAll(
+                    listOf(
+                        DraftCriterio("Presentación Personal", "Uniforme e higiene postural", "10.0", "25.0"),
+                        DraftCriterio("Ejecución Técnica", "Dominio del procedimiento estándar", "10.0", "50.0"),
+                        DraftCriterio("Disciplina y Seguridad", "Cumplimiento de protocolos de seguridad", "10.0", "25.0")
+                    )
+                )
+                scrollState.animateScrollTo(0)
+            }
+            else -> {}
+        }
+    }
+
     val customFieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         focusedLabelColor = MaterialTheme.colorScheme.primary,

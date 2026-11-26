@@ -88,6 +88,21 @@ fun EvaluateStudentScreen(
 
     val scrollState = rememberScrollState()
 
+    // Scroll automático hacia arriba cuando ocurre un error o al completar con éxito
+    LaunchedEffect(evalState) {
+        when (evalState) {
+            is EvaluacionState.Error -> {
+                scrollState.animateScrollTo(0)
+            }
+            is EvaluacionState.Success -> {
+                observacion = ""
+                selectedEstudiante = null
+                scrollState.animateScrollTo(0)
+            }
+            else -> {}
+        }
+    }
+
     val customFieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         focusedLabelColor = MaterialTheme.colorScheme.primary,
