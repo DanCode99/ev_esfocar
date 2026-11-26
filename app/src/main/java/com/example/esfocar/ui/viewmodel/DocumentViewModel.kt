@@ -8,6 +8,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.esfocar.data.model.DocumentItem
+import com.example.esfocar.data.remote.NetworkUtils
 import com.example.esfocar.data.repository.DocumentRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -100,6 +101,7 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
             }
 
             val currentDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+            val isOnline = NetworkUtils.isNetworkAvailable(context)
 
             val newDoc = DocumentItem(
                 title = titleInput.trim(),
@@ -111,9 +113,14 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
                 uploadedByUserId = userId
             )
 
-            val insertedId = documentRepository.insertDocument(newDoc)
+            val insertedId = documentRepository.insertDocument(newDoc, offline = !isOnline)
             if (insertedId > 0) {
-                _uploadState.value = UploadState.Success("Documento '${newDoc.title}' cargado con éxito en SQLite y almacenamiento local.")
+                val msg = if (isOnline) {
+                    "Documento '${newDoc.title}' cargado con éxito."
+                } else {
+                    "Documento '${newDoc.title}' guardado localmente en modo Offline en SQLite."
+                }
+                _uploadState.value = UploadState.Success(msg)
                 resetSelection()
                 loadDocuments()
                 return true
