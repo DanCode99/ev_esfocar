@@ -19,58 +19,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Grade
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.esfocar.data.model.User
-import com.example.esfocar.data.repository.SyncManager
-import com.example.esfocar.ui.viewmodel.DocumentViewModel
-import kotlinx.coroutines.launch
 
 @Composable
 fun DashboardScreen(
     currentUser: User?,
-    documentViewModel: DocumentViewModel,
-    syncManager: SyncManager?,
-    onNavigateToUpload: () -> Unit,
     onNavigateToDocuments: () -> Unit,
-    onNavigateToRegister: () -> Unit,
     onNavigateToCreateRubric: () -> Unit,
     onNavigateToEvaluateStudent: () -> Unit
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val documentsList by documentViewModel.documentsList.collectAsState()
-
-    var isSyncing by remember { mutableStateOf(false) }
-    var syncMessage by remember { mutableStateOf<String?>(null) }
-
     val scrollState = rememberScrollState()
 
     Column(
@@ -133,130 +105,6 @@ fun DashboardScreen(
             }
         }
 
-        // BANNER DE SINCRONIZACIÓN OFFLINE-FIRST (Spring Boot REST API)
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(14.dp)),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5))
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CloudSync,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Sincronización Spring Boot",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            if (syncManager != null) {
-                                isSyncing = true
-                                syncMessage = null
-                                coroutineScope.launch {
-                                    val result = syncManager.syncAll(context)
-                                    isSyncing = false
-                                    syncMessage = result.fold({ it }, { it.message })
-                                }
-                            }
-                        },
-                        enabled = !isSyncing,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
-                        } else {
-                            Text(text = "SINCRONIZAR RED", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                syncMessage?.let { msg ->
-                    Text(
-                        text = msg,
-                        fontSize = 12.sp,
-                        color = Color(0xFF003824),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
-
-        // Estadísticas Rápidas
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToDocuments() },
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE2F0E8)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text(
-                            text = "${documentsList.size} Documentos",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF003824)
-                        )
-                        Text(
-                            text = "Persistencia Offline en SQLite",
-                            fontSize = 12.sp,
-                            color = Color(0xFF1E3A2B)
-                        )
-                    }
-                }
-            }
-        }
-
         Text(
             text = "Acciones Principales y Evaluación",
             fontSize = 16.sp,
@@ -265,7 +113,7 @@ fun DashboardScreen(
             modifier = Modifier.padding(top = 4.dp)
         )
 
-        // Botones Principales de Evaluación (Crear Rúbrica y Evaluar Estudiante)
+        // Botones de Evaluación (Crear Rúbrica y Evaluar Estudiante)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -327,75 +175,48 @@ fun DashboardScreen(
             }
         }
 
-        // Accesos Secundarios (Cargar Documento y Ver Archivos)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Acceso Directo a Documentos Institucionales
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigateToDocuments() }
+                .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(14.dp)),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5))
         ) {
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onNavigateToUpload() }
-                    .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5))
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Subir Documento", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
-            }
-
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onNavigateToDocuments() }
-                    .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5))
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Ver Archivos", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-
-        // Si es Admin, mostrar acceso a Registrar Usuarios
-        if (currentUser?.isAdmin == true) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToRegister() }
-                    .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5))
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(text = "Registrar Nuevo Usuario", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
-                        Text(text = "Añadir profesores y estudiantes a SQLite", fontSize = 11.sp, color = Color(0xFF2E4035))
-                    }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                    Text(
+                        text = "Gestión de Documentos",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Subir nuevas pautas y consultar archivos institucionales",
+                        fontSize = 12.sp,
+                        color = Color(0xFF2E4035)
+                    )
                 }
             }
         }

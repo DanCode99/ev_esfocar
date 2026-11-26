@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,9 +34,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.esfocar.data.db.DatabaseHelper
+import com.example.esfocar.data.remote.NetworkUtils
 import com.example.esfocar.data.repository.DocumentRepository
 import com.example.esfocar.data.repository.EvaluacionRepository
 import com.example.esfocar.data.repository.RubricaRepository
@@ -45,20 +46,21 @@ import com.example.esfocar.data.repository.SyncManager
 import com.example.esfocar.data.repository.UserRepository
 import com.example.esfocar.ui.screens.CreateRubricScreen
 import com.example.esfocar.ui.screens.DashboardScreen
+import com.example.esfocar.ui.screens.DocumentsScreen
 import com.example.esfocar.ui.screens.EditPasswordScreen
 import com.example.esfocar.ui.screens.EvaluateStudentScreen
 import com.example.esfocar.ui.screens.LoginScreen
 import com.example.esfocar.ui.screens.RegisterUserScreen
 import com.example.esfocar.ui.screens.SplashScreen
 import com.example.esfocar.ui.screens.StudentDashboardScreen
-import com.example.esfocar.ui.screens.UploadDocumentScreen
-import com.example.esfocar.ui.screens.ViewDocumentsScreen
 import com.example.esfocar.ui.viewmodel.AuthState
 import com.example.esfocar.ui.viewmodel.AuthViewModel
 import com.example.esfocar.ui.viewmodel.DocumentViewModel
 import com.example.esfocar.ui.viewmodel.EvaluacionViewModel
 import com.example.esfocar.ui.viewmodel.RubricaViewModel
 import com.example.esfocar.ui.viewmodel.UserViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 enum class Screen {
     SPLASH,
@@ -66,8 +68,7 @@ enum class Screen {
     EDIT_PASSWORD,
     DASHBOARD,
     STUDENT_DASHBOARD,
-    UPLOAD_DOCUMENT,
-    VIEW_DOCUMENTS,
+    DOCUMENTS,
     REGISTER_USER,
     CREATE_RUBRIC,
     EVALUATE_STUDENT
@@ -98,6 +99,20 @@ fun MainContainer() {
 
     var currentScreen by remember { mutableStateOf(Screen.SPLASH) }
 
+    // Tarea Periódica Silenciosa de Sincronización Background (Sin sobrecargar servidor)
+    LaunchedEffect(authState) {
+        while (isActive) {
+            delay(30000) // Verifica cada 30 segundos
+            if (NetworkUtils.isNetworkAvailable(context) && syncManager.getPendingSyncCount() > 0) {
+                try {
+                    syncManager.syncAll(context)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
     // Reactividad para cambio de pantalla según estado de autenticación y rol
     LaunchedEffect(authState) {
         when (authState) {
@@ -122,8 +137,7 @@ fun MainContainer() {
     val showBottomBar = currentScreen in listOf(
         Screen.DASHBOARD,
         Screen.STUDENT_DASHBOARD,
-        Screen.UPLOAD_DOCUMENT,
-        Screen.VIEW_DOCUMENTS,
+        Screen.DOCUMENTS,
         Screen.REGISTER_USER,
         Screen.CREATE_RUBRIC,
         Screen.EVALUATE_STUDENT
@@ -150,8 +164,7 @@ fun MainContainer() {
                                 Screen.STUDENT_DASHBOARD -> "Portal Carabinero Alumno"
                                 Screen.CREATE_RUBRIC -> "Crear Rúbrica"
                                 Screen.EVALUATE_STUDENT -> "Evaluar Estudiante"
-                                Screen.UPLOAD_DOCUMENT -> "Cargar Documento"
-                                Screen.VIEW_DOCUMENTS -> "Ver Documentos"
+                                Screen.DOCUMENTS -> "Documentos Institucionales"
                                 Screen.REGISTER_USER -> "Registrar Usuario"
                                 else -> "Esfocar"
                             },
@@ -199,29 +212,29 @@ fun MainContainer() {
                     tonalElevation = 6.dp
                 ) {
                     if (currentUser?.isEstudiante == true) {
-                        // Navegación para Rol ESTUDIANTE
+                        // Pestañas para Rol ESTUDIANTE
                         NavigationBarItem(
                             selected = currentScreen == Screen.STUDENT_DASHBOARD,
                             onClick = { currentScreen = Screen.STUDENT_DASHBOARD },
                             icon = { Icon(imageVector = Icons.Default.School, contentDescription = "Mis Notas") },
-                            label = { Text("Mis Notas", fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Mis Notas", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1) },
                             colors = navItemColors
                         )
 
                         NavigationBarItem(
-                            selected = currentScreen == Screen.VIEW_DOCUMENTS,
-                            onClick = { currentScreen = Screen.VIEW_DOCUMENTS },
+                            selected = currentScreen == Screen.DOCUMENTS,
+                            onClick = { currentScreen = Screen.DOCUMENTS },
                             icon = { Icon(imageVector = Icons.Default.Description, contentDescription = "Documentos") },
-                            label = { Text("Documentos", fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Documentos", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             colors = navItemColors
                         )
                     } else {
-                        // Navegación para Rol PROFESOR / ADMIN
+                        // Pestañas para Rol PROFESOR / ADMIN
                         NavigationBarItem(
                             selected = currentScreen == Screen.DASHBOARD,
                             onClick = { currentScreen = Screen.DASHBOARD },
                             icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "Inicio") },
-                            label = { Text("Inicio", fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Inicio", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1) },
                             colors = navItemColors
                         )
 
@@ -229,23 +242,15 @@ fun MainContainer() {
                             selected = currentScreen == Screen.EVALUATE_STUDENT,
                             onClick = { currentScreen = Screen.EVALUATE_STUDENT },
                             icon = { Icon(imageVector = Icons.Default.Grade, contentDescription = "Evaluar") },
-                            label = { Text("Evaluar", fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Evaluar", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1) },
                             colors = navItemColors
                         )
 
                         NavigationBarItem(
-                            selected = currentScreen == Screen.UPLOAD_DOCUMENT,
-                            onClick = { currentScreen = Screen.UPLOAD_DOCUMENT },
-                            icon = { Icon(imageVector = Icons.Default.UploadFile, contentDescription = "Cargar") },
-                            label = { Text("Cargar", fontWeight = FontWeight.SemiBold) },
-                            colors = navItemColors
-                        )
-
-                        NavigationBarItem(
-                            selected = currentScreen == Screen.VIEW_DOCUMENTS,
-                            onClick = { currentScreen = Screen.VIEW_DOCUMENTS },
+                            selected = currentScreen == Screen.DOCUMENTS,
+                            onClick = { currentScreen = Screen.DOCUMENTS },
                             icon = { Icon(imageVector = Icons.Default.Description, contentDescription = "Documentos") },
-                            label = { Text("Documentos", fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Documentos", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             colors = navItemColors
                         )
 
@@ -254,7 +259,7 @@ fun MainContainer() {
                                 selected = currentScreen == Screen.REGISTER_USER,
                                 onClick = { currentScreen = Screen.REGISTER_USER },
                                 icon = { Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Usuarios") },
-                                label = { Text("Usuarios", fontWeight = FontWeight.SemiBold) },
+                                label = { Text("Usuarios", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1) },
                                 colors = navItemColors
                             )
                         }
@@ -285,11 +290,7 @@ fun MainContainer() {
                 Screen.DASHBOARD -> {
                     DashboardScreen(
                         currentUser = currentUser,
-                        documentViewModel = documentViewModel,
-                        syncManager = syncManager,
-                        onNavigateToUpload = { currentScreen = Screen.UPLOAD_DOCUMENT },
-                        onNavigateToDocuments = { currentScreen = Screen.VIEW_DOCUMENTS },
-                        onNavigateToRegister = { currentScreen = Screen.REGISTER_USER },
+                        onNavigateToDocuments = { currentScreen = Screen.DOCUMENTS },
                         onNavigateToCreateRubric = { currentScreen = Screen.CREATE_RUBRIC },
                         onNavigateToEvaluateStudent = { currentScreen = Screen.EVALUATE_STUDENT }
                     )
@@ -316,14 +317,9 @@ fun MainContainer() {
                         evaluacionViewModel = evaluacionViewModel
                     )
                 }
-                Screen.UPLOAD_DOCUMENT -> {
-                    UploadDocumentScreen(
+                Screen.DOCUMENTS -> {
+                    DocumentsScreen(
                         currentUser = currentUser,
-                        documentViewModel = documentViewModel
-                    )
-                }
-                Screen.VIEW_DOCUMENTS -> {
-                    ViewDocumentsScreen(
                         documentViewModel = documentViewModel
                     )
                 }
