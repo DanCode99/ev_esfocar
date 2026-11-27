@@ -412,11 +412,12 @@ class UserRepository(
      */
     fun saveUserToSQLite(user: User) {
         val db = dbHelper.writableDatabase
+        val normalizedEmail = user.email.trim().lowercase()
         val values = ContentValues().apply {
             if (user.id > 0) {
                 put(DatabaseHelper.COLUMN_USER_ID, user.id)
             }
-            put(DatabaseHelper.COLUMN_USER_EMAIL, user.email.trim().lowercase())
+            put(DatabaseHelper.COLUMN_USER_EMAIL, normalizedEmail)
             put(DatabaseHelper.COLUMN_USER_PASSWORD, user.password)
             put(DatabaseHelper.COLUMN_USER_FULL_NAME, user.fullName)
             put(DatabaseHelper.COLUMN_USER_RUT, user.rut)
@@ -424,17 +425,22 @@ class UserRepository(
             put(DatabaseHelper.COLUMN_USER_IS_FIRST_LOGIN, user.isFirstLogin)
         }
 
-        val existing = getUserByEmail(user.email) ?: if (user.id > 0) getUserByIdLocal(user.id) else null
-        if (existing != null) {
-            db.update(
+        val existingByEmail = getUserByEmail(normalizedEmail)
+        if (existingByEmail != null && user.id > 0 && existingByEmail.id != user.id) {
+            // Eliminar fila local con ID desalineado antes de insertar con el ID real del backend
+            db.delete(
                 DatabaseHelper.TABLE_USERS,
-                values,
                 "${DatabaseHelper.COLUMN_USER_ID} = ?",
-                arrayOf(existing.id.toString())
+                arrayOf(existingByEmail.id.toString())
             )
-        } else {
-            db.insertWithOnConflict(DatabaseHelper.TABLE_USERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
         }
+
+        db.insertWithOnConflict(
+            DatabaseHelper.TABLE_USERS,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
     }
 
     private fun cursorToUser(cursor: Cursor): User {

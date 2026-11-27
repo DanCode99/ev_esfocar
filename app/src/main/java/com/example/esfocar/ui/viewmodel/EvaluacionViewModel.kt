@@ -62,7 +62,7 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
     fun loadEvaluacionesEstudiante(estudianteUserId: Long) {
         if (estudianteUserId <= 0L) {
             _evaluacionesList.value = emptyList()
-            _errorMessage.value = "ID de estudiante no válido."
+            _evaluaciones.value = emptyList()
             return
         }
 
@@ -70,13 +70,20 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                // Intenta actualizar desde Spring Boot y guarda en SQLite;
-                // si falla o no hay red, el repositorio devuelve lo guardado en SQLite.
-                val evaluaciones = evaluacionRepository.fetchEvaluacionesByEstudianteFromRemote(estudianteUserId)
-                _evaluacionesList.value = evaluaciones
+                var list = evaluacionRepository.fetchEvaluacionesByEstudianteFromRemote(estudianteUserId)
+
+                // Fallback: si /api/evaluaciones/estudiante/{id} devuelve vacío o falla,
+                // obtener todas las evaluaciones y filtrar por estudianteUserId
+                if (list.isEmpty()) {
+                    list = evaluacionRepository
+                        .fetchEvaluacionesFromRemote()
+                        .filter { it.estudianteUserId == estudianteUserId }
+                }
+
+                _evaluacionesList.value = list
+                _evaluaciones.value = list
             } catch (e: Exception) {
-                _errorMessage.value = "Error al cargar calificaciones: ${e.localizedMessage}"
-                _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
+                _errorMessage.value = "Error al cargar evaluaciones: ${e.localizedMessage}"
             } finally {
                 _isLoading.value = false
             }

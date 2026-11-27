@@ -152,12 +152,16 @@ class EvaluacionRepository(
             if (response.isSuccessful && response.body() != null) {
                 val remoteEvals = response.body()!!
                 for (ev in remoteEvals) {
-                    insertEvaluacion(ev, offline = false)
+                    try {
+                        insertEvaluacion(ev, offline = false)
+                    } catch (dbEx: Exception) {
+                        Log.e(TAG, "No se pudo cachear evaluación ${ev.id} en SQLite: ${dbEx.message}", dbEx)
+                    }
                 }
-                return@withContext remoteEvals
+                return@withContext sanitizeEvaluaciones(remoteEvals);
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Excepción de red al obtener evaluaciones del estudiante $estudianteUserId: ${e.message}", e)
+            Log.e(TAG, "Error obteniendo evaluaciones remotas para estudiante $estudianteUserId: ${e.message}", e)
         }
         return@withContext getEvaluacionesByEstudiante(estudianteUserId)
     }
@@ -310,6 +314,24 @@ class EvaluacionRepository(
             observacion = cursor.getString(obsIndex),
             sincronizado = cursor.getInt(syncIndex),
             fechaEvaluacion = cursor.getString(dateIndex)
+        )
+    }
+}
+
+public fun sanitizeEvaluaciones(items: List<Evaluacion>): List<Evaluacion> {
+    return items.map { ev ->
+        @Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
+        ev.copy(
+            rubricaTitulo = ev.rubricaTitulo?.orEmpty() ?: "",
+            estudianteNombre = ev.estudianteNombre?.orEmpty() ?: "",
+            evaluadorNombre = ev.evaluadorNombre?.orEmpty() ?: "",
+            observacion = ev.observacion?.orEmpty() ?: "",
+            fechaEvaluacion = ev.fechaEvaluacion?.orEmpty() ?: "",
+            detalles = (ev.detalles ?: emptyList()).map { det ->
+                det.copy(
+                    criterioNombre = det.criterioNombre?.orEmpty() ?: ""
+                )
+            }
         )
     }
 }

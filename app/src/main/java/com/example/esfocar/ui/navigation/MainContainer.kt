@@ -152,20 +152,6 @@ fun MainContainer() {
         indicatorColor = Color(0xFFE0F2E9)
     )
 
-    val evaluaciones by evaluacionViewModel.evaluaciones.collectAsState()
-    val isLoading by evaluacionViewModel.isLoading.collectAsState()
-    val errorMessage by evaluacionViewModel.errorMessage.collectAsState()
-
-    currentUser?.let { user ->
-        MisNotasScreen(
-            estudianteId = user.id,
-            evaluaciones = evaluaciones,
-            isLoading = isLoading,
-            errorMessage = errorMessage,
-            onRefresh = { id -> evaluacionViewModel.loadEvaluacionesEstudiante(id) }
-        )
-    }
-
     Scaffold(
         containerColor = Color.White,
         topBar = {
