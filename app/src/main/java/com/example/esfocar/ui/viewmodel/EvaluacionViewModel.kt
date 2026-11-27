@@ -3,6 +3,7 @@ package com.example.esfocar.ui.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.esfocar.data.model.DetalleEvaluacion
 import com.example.esfocar.data.model.Evaluacion
 import com.example.esfocar.data.model.Rubrica
@@ -11,6 +12,7 @@ import com.example.esfocar.data.repository.EvaluacionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 sealed class EvaluacionState {
     object Idle : EvaluacionState()
@@ -39,11 +41,18 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
     val notaCalculada: StateFlow<Double> = _notaCalculada.asStateFlow()
 
     fun loadEvaluaciones() {
-        _evaluacionesList.value = evaluacionRepository.getAllEvaluaciones()
+        viewModelScope.launch {
+            try {
+                evaluacionRepository.fetchEvaluacionesFromRemote()
+            } catch (_: Exception) {}
+            _evaluacionesList.value = evaluacionRepository.getAllEvaluaciones()
+        }
     }
 
     fun loadEvaluacionesEstudiante(estudianteUserId: Long) {
-        _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
+        viewModelScope.launch {
+            _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
+        }
     }
 
     fun selectRubrica(rubrica: Rubrica?) {
@@ -120,33 +129,49 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
         val notaFinalCalculada = Evaluacion.calcularNotaFinal(detalles)
         _evalState.value = EvaluacionState.Loading
 
-        try {
-            val isOnline = NetworkUtils.isNetworkAvailable(context)
-            val nuevaEvaluacion = Evaluacion(
-                rubricaId = rubrica.id,
-                estudianteUserId = estudianteUserId,
-                evaluadorUserId = evaluadorUserId,
-                notaFinal = notaFinalCalculada,
-                observacion = observacion.trim(),
-                detalles = detalles,
-                sincronizado = if (isOnline) 1 else 0
-            )
+        viewModelScope.launch {
+            try {
+                val isOnline = NetworkUtils.isNetworkAvailable(context)
+                val nuevaEvaluacion = Evaluacion(
+                    rubricaId = rubrica.id,
+                    rubricaTitulo = rubrica.titulo,
+                    estudianteUserId = estudianteUserId,
+                    evaluadorUserId = evaluadorUserId,
+                    notaFinal = notaFinalCalculada,
+                    observacion = observacion.trim(),
+                    detalles = detalles,
+                    sincronizado = if (isOnline) 1 else 0
+                )
 
-            val insertedId = evaluacionRepository.insertEvaluacion(nuevaEvaluacion, offline = !isOnline)
-            if (insertedId > 0) {
-                val msg = if (isOnline) {
-                    String.format("Evaluación registrada exitosamente con Nota Final: %.2f.", notaFinalCalculada)
+                val result = if (isOnline) {
+                    evaluacionRepository.createEvaluacionRemote(nuevaEvaluacion)
                 } else {
-                    String.format("Evaluación con Nota Final %.2f guardada localmente en modo Offline en SQLite. Se sincronizará con Spring Boot al conectar red.", notaFinalCalculada)
+                    val id = evaluacionRepository.insertEvaluacion(nuevaEvaluacion, offline = true)
+                    Result.success(id)
                 }
-                _evalState.value = EvaluacionState.Success(msg)
-                selectRubrica(null)
-                loadEvaluaciones()
-            } else {
-                _evalState.value = EvaluacionState.Error("Error al guardar la evaluación en la base de datos.")
+
+                result.fold(
+                    onSuccess = { insertedId ->
+                        if (insertedId > 0) {
+                            val msg = if (isOnline) {
+                                String.format("Evaluación registrada exitosamente con Nota Final: %.2f.", notaFinalCalculada)
+                            } else {
+                                String.format("Evaluación con Nota Final %.2f guardada localmente en modo Offline en SQLite. Se sincronizará con Spring Boot al conectar red.", notaFinalCalculada)
+                            }
+                            _evalState.value = EvaluacionState.Success(msg)
+                            selectRubrica(null)
+                            loadEvaluaciones()
+                        } else {
+                            _evalState.value = EvaluacionState.Error("Error al guardar la evaluación en la base de datos.")
+                        }
+                    },
+                    onFailure = { ex ->
+                        _evalState.value = EvaluacionState.Error(ex.message ?: "Error al guardar la evaluación.")
+                    }
+                )
+            } catch (e: Exception) {
+                _evalState.value = EvaluacionState.Error("Error inesperado: ${e.localizedMessage}")
             }
-        } catch (e: Exception) {
-            _evalState.value = EvaluacionState.Error("Error inesperado: ${e.localizedMessage}")
         }
     }
 

@@ -2,14 +2,26 @@ package com.example.esfocar.data.repository
 
 import android.content.ContentValues
 import android.database.Cursor
+import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.DetalleEvaluacion
 import com.example.esfocar.data.model.Evaluacion
+import com.example.esfocar.data.remote.EsfocarApiService
+import com.example.esfocar.data.remote.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
- * Repositorio para gestión de Evaluaciones y Detalles en SQLite.
+ * Repositorio para gestión de Evaluaciones y Detalles en SQLite y sincronización con Spring Boot en Render.
  */
-class EvaluacionRepository(private val dbHelper: DatabaseHelper) {
+class EvaluacionRepository(
+    private val dbHelper: DatabaseHelper,
+    private val apiService: EsfocarApiService = RetrofitClient.apiService
+) {
+
+    companion object {
+        private const val TAG = "EvaluacionRepository"
+    }
 
     /**
      * Inserta una evaluación con sus detalles por criterio en SQLite.
@@ -23,6 +35,9 @@ class EvaluacionRepository(private val dbHelper: DatabaseHelper) {
             val syncValue = if (offline) 0 else evaluacion.sincronizado
 
             val values = ContentValues().apply {
+                if (evaluacion.id > 0) {
+                    put(DatabaseHelper.COLUMN_EVAL_ID, evaluacion.id)
+                }
                 put(DatabaseHelper.COLUMN_EVAL_RUBRICA_ID, evaluacion.rubricaId)
                 put(DatabaseHelper.COLUMN_EVAL_ESTUDIANTE_ID, evaluacion.estudianteUserId)
                 put(DatabaseHelper.COLUMN_EVAL_EVALUADOR_ID, evaluacion.evaluadorUserId)
@@ -31,18 +46,21 @@ class EvaluacionRepository(private val dbHelper: DatabaseHelper) {
                 put(DatabaseHelper.COLUMN_EVAL_SINCRONIZADO, syncValue)
             }
 
-            evalId = db.insert(DatabaseHelper.TABLE_EVALUACIONES, null, values)
+            evalId = db.insertWithOnConflict(DatabaseHelper.TABLE_EVALUACIONES, null, values, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
 
             if (evalId != -1L) {
                 for (detalle in evaluacion.detalles) {
                     val detValues = ContentValues().apply {
+                        if (detalle.id > 0) {
+                            put(DatabaseHelper.COLUMN_DETALLE_ID, detalle.id)
+                        }
                         put(DatabaseHelper.COLUMN_DETALLE_EVALUACION_ID, evalId)
                         put(DatabaseHelper.COLUMN_DETALLE_CRITERIO_ID, detalle.criterioId)
                         put(DatabaseHelper.COLUMN_DETALLE_PUNTAJE_OBTENIDO, detalle.puntajeObtenido)
                         put(DatabaseHelper.COLUMN_DETALLE_PUNTAJE_MAXIMO, detalle.puntajeMaximo)
                         put(DatabaseHelper.COLUMN_DETALLE_PORCENTAJE, detalle.porcentaje)
                     }
-                    db.insert(DatabaseHelper.TABLE_DETALLES_EVALUACION, null, detValues)
+                    db.insertWithOnConflict(DatabaseHelper.TABLE_DETALLES_EVALUACION, null, detValues, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
                 }
                 db.setTransactionSuccessful()
             }
@@ -50,6 +68,27 @@ class EvaluacionRepository(private val dbHelper: DatabaseHelper) {
             db.endTransaction()
         }
         return evalId
+    }
+
+    /**
+     * Guarda una evaluación en Spring Boot (Render) y en SQLite local.
+     */
+    suspend fun createEvaluacionRemote(evaluacion: Evaluacion): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.createEvaluacion(evaluacion)
+            if (response.isSuccessful && response.body() != null) {
+                val remoteEval = response.body()!!
+                val localId = insertEvaluacion(remoteEval, offline = false)
+                return@withContext Result.success(remoteEval.id.takeIf { it > 0 } ?: localId)
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: "Código ${response.code()}"
+                Log.e(TAG, "Error HTTP al crear evaluación en Render [${response.code()}]: $errorMsg")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al guardar evaluación en Render: ${e.message}", e)
+        }
+        val offlineId = insertEvaluacion(evaluacion, offline = true)
+        return@withContext Result.success(offlineId)
     }
 
     /**
@@ -80,6 +119,27 @@ class EvaluacionRepository(private val dbHelper: DatabaseHelper) {
             }
         }
         return list
+    }
+
+    /**
+     * Consulta evaluaciones desde Render (GET /api/evaluaciones) y actualiza el respaldo local.
+     */
+    suspend fun fetchEvaluacionesFromRemote(): List<Evaluacion> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getEvaluaciones()
+            if (response.isSuccessful && response.body() != null) {
+                val remoteEvals = response.body()!!
+                for (ev in remoteEvals) {
+                    insertEvaluacion(ev, offline = false)
+                }
+                return@withContext remoteEvals
+            } else {
+                Log.e(TAG, "Error HTTP al listar evaluaciones [${response.code()}]: ${response.errorBody()?.string()}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al listar evaluaciones de Render: ${e.message}", e)
+        }
+        return@withContext getAllEvaluaciones()
     }
 
     /**

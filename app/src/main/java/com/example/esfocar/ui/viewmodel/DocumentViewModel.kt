@@ -7,12 +7,14 @@ import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.esfocar.data.model.DocumentItem
 import com.example.esfocar.data.remote.NetworkUtils
 import com.example.esfocar.data.repository.DocumentRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -44,7 +46,12 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
     val selectedFileSize: StateFlow<Long> = _selectedFileSize.asStateFlow()
 
     fun loadDocuments() {
-        _documentsList.value = documentRepository.getAllDocuments()
+        viewModelScope.launch {
+            try {
+                documentRepository.fetchDocumentsFromRemote()
+            } catch (_: Exception) {}
+            _documentsList.value = documentRepository.getAllDocuments()
+        }
     }
 
     fun setSelectedFile(context: Context, uri: Uri?) {
@@ -113,21 +120,22 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
                 uploadedByUserId = userId
             )
 
-            val insertedId = documentRepository.insertDocument(newDoc, offline = !isOnline)
-            if (insertedId > 0) {
+            viewModelScope.launch {
+                if (isOnline) {
+                    documentRepository.createDocumentRemote(newDoc)
+                } else {
+                    documentRepository.insertDocument(newDoc, offline = true)
+                }
                 val msg = if (isOnline) {
-                    "Documento '${newDoc.title}' cargado con éxito."
+                    "Documento '${newDoc.title}' cargado y enviado con éxito."
                 } else {
                     "Documento '${newDoc.title}' guardado localmente en modo Offline en SQLite."
                 }
                 _uploadState.value = UploadState.Success(msg)
                 resetSelection()
                 loadDocuments()
-                return true
-            } else {
-                _uploadState.value = UploadState.Error("Error al guardar registro en la base de datos.")
-                return false
             }
+            return true
         } catch (e: Exception) {
             _uploadState.value = UploadState.Error("Error al procesar el archivo: ${e.localizedMessage}")
             return false
@@ -179,12 +187,18 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            context.startActivity(Intent.createChooser(intent, "Abrir documento con...").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
+            context.startActivity(Intent.createChooser(intent, "Abrir documento con:"))
         } catch (e: Exception) {
-            _uploadState.value = UploadState.Error("No se encontró una aplicación para abrir este archivo.")
+            _uploadState.value = UploadState.Error("No hay una aplicación disponible para abrir este tipo de archivo.")
         }
+    }
+
+    fun resetUploadState() {
+        _uploadState.value = UploadState.Idle
+    }
+
+    fun resetState() {
+        _uploadState.value = UploadState.Idle
     }
 
     fun resetSelection() {
@@ -193,36 +207,34 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
         _selectedFileSize.value = 0L
     }
 
-    fun resetUploadState() {
-        _uploadState.value = UploadState.Idle
-    }
-
-    private fun getFileNameAndSize(context: Context, uri: Uri): Pair<String, Long> {
-        var name = "archivo"
-        var size = 0L
-        try {
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (cursor.moveToFirst()) {
-                    if (nameIndex != -1) name = cursor.getString(nameIndex)
-                    if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return Pair(name, size)
-    }
-
     private fun getFileType(fileName: String): String {
-        val extension = fileName.substringAfterLast('.', "").uppercase()
+        val extension = fileName.substringAfterLast(".", "").uppercase()
         return when (extension) {
             "PDF" -> "PDF"
             "DOC" -> "DOC"
             "DOCX" -> "DOCX"
-            else -> extension.ifBlank { "DESCONOCIDO" }
+            else -> extension.ifBlank { "DOC" }
         }
+    }
+
+    private fun getFileNameAndSize(context: Context, uri: Uri): Pair<String, Long> {
+        var name = "documento"
+        var size = 0L
+
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+
+            if (cursor.moveToFirst()) {
+                if (nameIndex != -1 && !cursor.isNull(nameIndex)) {
+                    name = cursor.getString(nameIndex)
+                }
+                if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+                    size = cursor.getLong(sizeIndex)
+                }
+            }
+        }
+        return Pair(name, size)
     }
 
     class Factory(private val documentRepository: DocumentRepository) : ViewModelProvider.Factory {

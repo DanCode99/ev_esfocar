@@ -3,6 +3,7 @@ package com.example.esfocar.ui.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.esfocar.data.model.CriterioRubrica
 import com.example.esfocar.data.model.Rubrica
 import com.example.esfocar.data.remote.NetworkUtils
@@ -10,6 +11,7 @@ import com.example.esfocar.data.repository.RubricaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 sealed class RubricaState {
@@ -28,7 +30,12 @@ class RubricaViewModel(private val rubricaRepository: RubricaRepository) : ViewM
     val rubricaState: StateFlow<RubricaState> = _rubricaState.asStateFlow()
 
     fun loadRubricas() {
-        _rubricasList.value = rubricaRepository.getAllRubricas()
+        viewModelScope.launch {
+            try {
+                rubricaRepository.fetchRubricasFromRemote()
+            } catch (_: Exception) {}
+            _rubricasList.value = rubricaRepository.getAllRubricas()
+        }
     }
 
     fun crearRubrica(
@@ -74,30 +81,45 @@ class RubricaViewModel(private val rubricaRepository: RubricaRepository) : ViewM
 
         _rubricaState.value = RubricaState.Loading
 
-        try {
-            val isOnline = NetworkUtils.isNetworkAvailable(context)
-            val nuevaRubrica = Rubrica(
-                titulo = titulo.trim(),
-                descripcion = descripcion.trim(),
-                criterios = criterios,
-                creadorUserId = creadorUserId,
-                sincronizado = if (isOnline) 1 else 0
-            )
+        viewModelScope.launch {
+            try {
+                val isOnline = NetworkUtils.isNetworkAvailable(context)
+                val nuevaRubrica = Rubrica(
+                    titulo = titulo.trim(),
+                    descripcion = descripcion.trim(),
+                    criterios = criterios,
+                    creadorUserId = creadorUserId,
+                    sincronizado = if (isOnline) 1 else 0
+                )
 
-            val insertedId = rubricaRepository.insertRubrica(nuevaRubrica, offline = !isOnline)
-            if (insertedId > 0) {
-                val msg = if (isOnline) {
-                    "Rúbrica '${nuevaRubrica.titulo}' creada exitosamente."
+                val result = if (isOnline) {
+                    rubricaRepository.createRubricaRemote(nuevaRubrica)
                 } else {
-                    "Rúbrica '${nuevaRubrica.titulo}' guardada localmente en modo Offline en SQLite. Se sincronizará al conectar a red."
+                    val id = rubricaRepository.insertRubrica(nuevaRubrica, offline = true)
+                    Result.success(id)
                 }
-                _rubricaState.value = RubricaState.Success(msg)
-                loadRubricas()
-            } else {
-                _rubricaState.value = RubricaState.Error("Error al guardar la rúbrica en la base de datos.")
+
+                result.fold(
+                    onSuccess = { insertedId ->
+                        if (insertedId > 0) {
+                            val msg = if (isOnline) {
+                                "Rúbrica '${nuevaRubrica.titulo}' creada exitosamente."
+                            } else {
+                                "Rúbrica '${nuevaRubrica.titulo}' guardada localmente en modo Offline en SQLite. Se sincronizará al conectar a red."
+                            }
+                            _rubricaState.value = RubricaState.Success(msg)
+                            loadRubricas()
+                        } else {
+                            _rubricaState.value = RubricaState.Error("Error al guardar la rúbrica en la base de datos.")
+                        }
+                    },
+                    onFailure = { ex ->
+                        _rubricaState.value = RubricaState.Error(ex.message ?: "Error al guardar la rúbrica.")
+                    }
+                )
+            } catch (e: Exception) {
+                _rubricaState.value = RubricaState.Error("Error inesperado: ${e.localizedMessage}")
             }
-        } catch (e: Exception) {
-            _rubricaState.value = RubricaState.Error("Error inesperado: ${e.localizedMessage}")
         }
     }
 

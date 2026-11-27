@@ -33,6 +33,9 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _usersList = MutableStateFlow<List<User>>(emptyList())
     val usersList: StateFlow<List<User>> = _usersList.asStateFlow()
 
+    private val _studentsList = MutableStateFlow<List<User>>(emptyList())
+    val studentsList: StateFlow<List<User>> = _studentsList.asStateFlow()
+
     private val _updateState = MutableStateFlow<UpdateUserState>(UpdateUserState.Idle)
     val updateState: StateFlow<UpdateUserState> = _updateState.asStateFlow()
 
@@ -43,6 +46,13 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
     fun loadUsers(context: Context? = null) {
         viewModelScope.launch {
             _usersList.value = userRepository.getAllUsers(context)
+            _studentsList.value = userRepository.getEstudiantes(context)
+        }
+    }
+
+    fun loadEstudiantes(context: Context? = null) {
+        viewModelScope.launch {
+            _studentsList.value = userRepository.getEstudiantes(context)
         }
     }
 

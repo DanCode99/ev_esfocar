@@ -2,13 +2,25 @@ package com.example.esfocar.data.repository
 
 import android.content.ContentValues
 import android.database.Cursor
+import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.DocumentItem
+import com.example.esfocar.data.remote.EsfocarApiService
+import com.example.esfocar.data.remote.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
- * Repositorio de Documentos para operaciones SQLite (Fase 2 - Offline First).
+ * Repositorio de Documentos para operaciones SQLite y sincronización con Spring Boot en Render.
  */
-class DocumentRepository(private val dbHelper: DatabaseHelper) {
+class DocumentRepository(
+    private val dbHelper: DatabaseHelper,
+    private val apiService: EsfocarApiService = RetrofitClient.apiService
+) {
+
+    companion object {
+        private const val TAG = "DocumentRepository"
+    }
 
     /**
      * Guarda el registro de un nuevo documento en la base de datos SQLite.
@@ -32,6 +44,28 @@ class DocumentRepository(private val dbHelper: DatabaseHelper) {
     }
 
     /**
+     * Guarda un documento en el backend Spring Boot (Render) y en SQLite local.
+     */
+    suspend fun createDocumentRemote(document: DocumentItem): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.createDocumento(document)
+            if (response.isSuccessful && response.body() != null) {
+                val remoteDoc = response.body()!!
+                val localId = insertDocument(remoteDoc, offline = false)
+                return@withContext Result.success(remoteDoc.id.takeIf { it > 0 } ?: localId)
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: "Código ${response.code()}"
+                Log.e(TAG, "Error HTTP al crear documento en Render [${response.code()}]: $errorMsg")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al guardar documento en Render: ${e.message}", e)
+        }
+        // Fallback offline
+        val offlineId = insertDocument(document, offline = true)
+        return@withContext Result.success(offlineId)
+    }
+
+    /**
      * Obtiene la lista completa de documentos con el nombre del usuario que lo subió.
      */
     fun getAllDocuments(): List<DocumentItem> {
@@ -52,6 +86,29 @@ class DocumentRepository(private val dbHelper: DatabaseHelper) {
             }
         }
         return list
+    }
+
+    /**
+     * Consulta documentos desde Render (GET /api/documentos) y actualiza el respaldo local.
+     */
+    suspend fun fetchDocumentsFromRemote(): List<DocumentItem> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getDocumentos()
+            if (response.isSuccessful && response.body() != null) {
+                val remoteDocs = response.body()!!
+                for (doc in remoteDocs) {
+                    if (getDocumentById(doc.id) == null) {
+                        insertDocument(doc, offline = false)
+                    }
+                }
+                return@withContext remoteDocs
+            } else {
+                Log.e(TAG, "Error HTTP al listar documentos [${response.code()}]: ${response.errorBody()?.string()}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al listar documentos de Render: ${e.message}", e)
+        }
+        return@withContext getAllDocuments()
     }
 
     /**

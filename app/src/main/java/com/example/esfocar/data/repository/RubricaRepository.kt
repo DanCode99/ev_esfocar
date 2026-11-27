@@ -2,14 +2,26 @@ package com.example.esfocar.data.repository
 
 import android.content.ContentValues
 import android.database.Cursor
+import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.CriterioRubrica
 import com.example.esfocar.data.model.Rubrica
+import com.example.esfocar.data.remote.EsfocarApiService
+import com.example.esfocar.data.remote.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
- * Repositorio para gestión de Rúbricas y Criterios en SQLite.
+ * Repositorio para gestión de Rúbricas y Criterios en SQLite y sincronización con Spring Boot en Render.
  */
-class RubricaRepository(private val dbHelper: DatabaseHelper) {
+class RubricaRepository(
+    private val dbHelper: DatabaseHelper,
+    private val apiService: EsfocarApiService = RetrofitClient.apiService
+) {
+
+    companion object {
+        private const val TAG = "RubricaRepository"
+    }
 
     /**
      * Inserta una rúbrica con sus criterios en SQLite.
@@ -23,24 +35,30 @@ class RubricaRepository(private val dbHelper: DatabaseHelper) {
             val syncValue = if (offline) 0 else rubrica.sincronizado
 
             val values = ContentValues().apply {
+                if (rubrica.id > 0) {
+                    put(DatabaseHelper.COLUMN_RUBRICA_ID, rubrica.id)
+                }
                 put(DatabaseHelper.COLUMN_RUBRICA_TITULO, rubrica.titulo.trim())
                 put(DatabaseHelper.COLUMN_RUBRICA_DESCRIPCION, rubrica.descripcion.trim())
                 put(DatabaseHelper.COLUMN_RUBRICA_CREADOR_ID, rubrica.creadorUserId)
                 put(DatabaseHelper.COLUMN_RUBRICA_SINCRONIZADO, syncValue)
             }
 
-            rubricaId = db.insert(DatabaseHelper.TABLE_RUBRICAS, null, values)
+            rubricaId = db.insertWithOnConflict(DatabaseHelper.TABLE_RUBRICAS, null, values, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
 
             if (rubricaId != -1L) {
                 for (criterio in rubrica.criterios) {
                     val critValues = ContentValues().apply {
+                        if (criterio.id > 0) {
+                            put(DatabaseHelper.COLUMN_CRITERIO_ID, criterio.id)
+                        }
                         put(DatabaseHelper.COLUMN_CRITERIO_RUBRICA_ID, rubricaId)
                         put(DatabaseHelper.COLUMN_CRITERIO_NOMBRE, criterio.nombre.trim())
                         put(DatabaseHelper.COLUMN_CRITERIO_DESCRIPCION, criterio.descripcion.trim())
                         put(DatabaseHelper.COLUMN_CRITERIO_PUNTAJE_MAXIMO, criterio.puntajeMaximo)
                         put(DatabaseHelper.COLUMN_CRITERIO_PORCENTAJE, criterio.porcentaje)
                     }
-                    db.insert(DatabaseHelper.TABLE_CRITERIOS_RUBRICA, null, critValues)
+                    db.insertWithOnConflict(DatabaseHelper.TABLE_CRITERIOS_RUBRICA, null, critValues, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
                 }
                 db.setTransactionSuccessful()
             }
@@ -48,6 +66,27 @@ class RubricaRepository(private val dbHelper: DatabaseHelper) {
             db.endTransaction()
         }
         return rubricaId
+    }
+
+    /**
+     * Guarda una rúbrica en Spring Boot (Render) y en SQLite local.
+     */
+    suspend fun createRubricaRemote(rubrica: Rubrica): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.createRubrica(rubrica)
+            if (response.isSuccessful && response.body() != null) {
+                val remoteRubrica = response.body()!!
+                val localId = insertRubrica(remoteRubrica, offline = false)
+                return@withContext Result.success(remoteRubrica.id.takeIf { it > 0 } ?: localId)
+            } else {
+                val errorMsg = response.errorBody()?.string() ?: "Código ${response.code()}"
+                Log.e(TAG, "Error HTTP al crear rúbrica en Render [${response.code()}]: $errorMsg")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al guardar rúbrica en Render: ${e.message}", e)
+        }
+        val offlineId = insertRubrica(rubrica, offline = true)
+        return@withContext Result.success(offlineId)
     }
 
     /**
@@ -73,6 +112,29 @@ class RubricaRepository(private val dbHelper: DatabaseHelper) {
             }
         }
         return list
+    }
+
+    /**
+     * Consulta rúbricas desde Render (GET /api/rubricas) y actualiza el respaldo local.
+     */
+    suspend fun fetchRubricasFromRemote(): List<Rubrica> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getRubricas()
+            if (response.isSuccessful && response.body() != null) {
+                val remoteRubricas = response.body()!!
+                for (rub in remoteRubricas) {
+                    if (getRubricaById(rub.id) == null) {
+                        insertRubrica(rub, offline = false)
+                    }
+                }
+                return@withContext remoteRubricas
+            } else {
+                Log.e(TAG, "Error HTTP al listar rúbricas [${response.code()}]: ${response.errorBody()?.string()}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al listar rúbricas de Render: ${e.message}", e)
+        }
+        return@withContext getAllRubricas()
     }
 
     /**

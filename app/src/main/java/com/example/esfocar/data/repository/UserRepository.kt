@@ -3,6 +3,8 @@ package com.example.esfocar.data.repository
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.User
 import com.example.esfocar.data.remote.EsfocarApiService
@@ -15,39 +17,53 @@ import kotlinx.coroutines.withContext
 
 /**
  * Repositorio de Usuarios con arquitectura Offline-First.
- * Conecta las llamadas REST con el microservicio Spring Boot (http://10.0.2.2:8080/)
- * y respalda localmente los usuarios en la base de datos SQLite.
+ * Conecta las llamadas REST con el microservicio Spring Boot en Render (https://esfocar-backend.onrender.com/)
+ * y respalda localmente los usuarios en la base de datos SQLite (DatabaseHelper).
  */
 class UserRepository(
     private val dbHelper: DatabaseHelper,
     private val apiService: EsfocarApiService = RetrofitClient.apiService
 ) {
 
+    companion object {
+        private const val TAG = "UserRepository"
+    }
+
+    /**
+     * Determina si se debe intentar la llamada remota.
+     * Si no se provee context, se intenta la llamada de red directamente.
+     */
+    private fun isOnline(context: Context?): Boolean {
+        return context == null || NetworkUtils.isNetworkAvailable(context)
+    }
+
     /**
      * Autentica un usuario intentando primero contra Spring Boot (POST /api/usuarios/login).
      * Si no hay red o el backend no responde, realiza el login contra la base de datos SQLite local.
      */
     suspend fun authenticate(context: Context?, emailInput: String, passwordInput: String): User? = withContext(Dispatchers.IO) {
-        val normalizedEmail = emailInput.trim().lowercase()
+        val normalizedIdentifier = emailInput.trim().lowercase()
         val passwordTrimmed = passwordInput.trim()
 
-        // 1. Intentar autenticar contra el servidor Spring Boot si hay conexión
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        // 1. Intentar autenticar contra Render si hay conexión o no se indicó context
+        if (isOnline(context)) {
             try {
-                val response = apiService.login(LoginRequest(normalizedEmail, passwordTrimmed))
+                val response = apiService.login(LoginRequest(identificador = normalizedIdentifier, password = passwordTrimmed))
                 if (response.isSuccessful && response.body() != null) {
                     val remoteUser = response.body()!!
-                    // Respaldar usuario obtenido de Spring Boot en SQLite
                     saveUserToSQLite(remoteUser)
                     return@withContext remoteUser
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: ""
+                    Log.e(TAG, "Error HTTP en login [${response.code()}]: $errorBody")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al autenticar en Render: ${e.message}", e)
             }
         }
 
         // 2. Fallback: Autenticar localmente en SQLite
-        return@withContext authenticateLocal(normalizedEmail, passwordTrimmed)
+        return@withContext authenticateLocal(normalizedIdentifier, passwordTrimmed)
     }
 
     /**
@@ -77,16 +93,16 @@ class UserRepository(
     }
 
     /**
-     * Registra un usuario intentando primero POST /api/usuarios en Spring Boot.
-     * Si no hay red, lo inserta localmente en SQLite.
+     * Registra un usuario intentando primero POST /api/usuarios en Spring Boot Render.
+     * Si la conexión falla, lo inserta localmente en SQLite como respaldo offline.
      */
     suspend fun createUser(context: Context?, user: User): Result<Long> = withContext(Dispatchers.IO) {
         val normalizedEmail = user.email.trim().lowercase()
         val normalizedRut = user.rut.trim().uppercase()
         val userToCreate = user.copy(email = normalizedEmail, rut = normalizedRut)
 
-        // 1. Intentar registrar en servidor Spring Boot
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        // 1. Intentar registrar en backend Spring Boot (Render)
+        if (isOnline(context)) {
             try {
                 val response = apiService.createUsuario(userToCreate)
                 if (response.isSuccessful && response.body() != null) {
@@ -94,20 +110,24 @@ class UserRepository(
                     saveUserToSQLite(remoteUser)
                     return@withContext Result.success(remoteUser.id)
                 } else {
-                    val errorMsg = response.errorBody()?.string() ?: "Error de validación en servidor Spring Boot (${response.code()})"
-                    return@withContext Result.failure(Exception(errorMsg))
+                    val errorMsg = response.errorBody()?.string() ?: "Error HTTP ${response.code()}"
+                    Log.e(TAG, "Error HTTP al crear usuario en Render [${response.code()}]: $errorMsg")
+                    // Si el servidor respondió con error de validación o conflicto (4xx), propagar el error
+                    if (response.code() in 400..499) {
+                        return@withContext Result.failure(Exception(errorMsg))
+                    }
                 }
             } catch (e: Exception) {
-                // Si falla la red, continuar al guardado local
+                Log.e(TAG, "Fallo de conexión al crear usuario en Render: ${e.message}", e)
             }
         }
 
         // 2. Fallback: Validar e insertar en SQLite local
         if (getUserByEmail(normalizedEmail) != null) {
-            return@withContext Result.failure(Exception("El correo '$normalizedEmail' ya se encuentra registrado."))
+            return@withContext Result.failure(Exception("El correo '$normalizedEmail' ya se encuentra registrado localmente."))
         }
         if (getUserByRut(normalizedRut) != null) {
-            return@withContext Result.failure(Exception("El RUT '$normalizedRut' ya se encuentra registrado."))
+            return@withContext Result.failure(Exception("El RUT '$normalizedRut' ya se encuentra registrado localmente."))
         }
 
         val db = dbHelper.writableDatabase
@@ -117,7 +137,7 @@ class UserRepository(
             put(DatabaseHelper.COLUMN_USER_FULL_NAME, userToCreate.fullName.trim())
             put(DatabaseHelper.COLUMN_USER_RUT, normalizedRut)
             put(DatabaseHelper.COLUMN_USER_ROLE, userToCreate.role)
-            put(DatabaseHelper.COLUMN_USER_IS_FIRST_LOGIN, 1)
+            put(DatabaseHelper.COLUMN_USER_IS_FIRST_LOGIN, userToCreate.isFirstLogin)
         }
 
         val id = db.insert(DatabaseHelper.TABLE_USERS, null, values)
@@ -134,11 +154,16 @@ class UserRepository(
     suspend fun updatePassword(context: Context?, userId: Long, newPassword: String): Boolean = withContext(Dispatchers.IO) {
         val passwordTrimmed = newPassword.trim()
 
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        if (isOnline(context)) {
             try {
-                apiService.updatePassword(userId, PasswordUpdateRequest(passwordTrimmed))
+                val response = apiService.updatePassword(userId, PasswordUpdateRequest(nuevaPassword = passwordTrimmed))
+                if (response.isSuccessful && response.body() != null) {
+                    saveUserToSQLite(response.body()!!)
+                } else {
+                    Log.e(TAG, "Error HTTP al actualizar contraseña en Render [${response.code()}]: ${response.errorBody()?.string()}")
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al actualizar contraseña en Render: ${e.message}", e)
             }
         }
 
@@ -174,14 +199,16 @@ class UserRepository(
             role = role
         )
 
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        if (isOnline(context)) {
             try {
                 val response = apiService.updateUsuario(userId, updatedUser)
                 if (response.isSuccessful && response.body() != null) {
                     saveUserToSQLite(response.body()!!)
+                } else {
+                    Log.e(TAG, "Error HTTP al actualizar usuario [${response.code()}]: ${response.errorBody()?.string()}")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al actualizar usuario en Render: ${e.message}", e)
             }
         }
 
@@ -202,14 +229,15 @@ class UserRepository(
         )
 
         return@withContext if (rowsUpdated > 0) Result.success(true)
-        else Result.failure(Exception("No se encontró el usuario para actualizar."))
+        else Result.failure(Exception("No se encontró el usuario para actualizar en base de datos local."))
     }
 
     /**
-     * Obtiene todos los usuarios desde Spring Boot (GET /api/usuarios) o desde SQLite.
+     * Obtiene todos los usuarios consultando primero a Render (GET /api/usuarios)
+     * y actualizando SQLite local como respaldo offline.
      */
     suspend fun getAllUsers(context: Context? = null): List<User> = withContext(Dispatchers.IO) {
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        if (isOnline(context)) {
             try {
                 val response = apiService.getUsuarios()
                 if (response.isSuccessful && response.body() != null) {
@@ -218,19 +246,22 @@ class UserRepository(
                         saveUserToSQLite(u)
                     }
                     return@withContext remoteList
+                } else {
+                    Log.e(TAG, "Error HTTP al listar usuarios [${response.code()}]: ${response.errorBody()?.string()}")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al obtener usuarios de Render: ${e.message}", e)
             }
         }
         return@withContext getAllUsersLocal()
     }
 
     /**
-     * Obtiene los usuarios con rol ESTUDIANTE desde Spring Boot (GET /api/usuarios/estudiantes) o de SQLite.
+     * Obtiene los usuarios con rol ESTUDIANTE consultando primero a Render (GET /api/usuarios/estudiantes)
+     * y actualizando SQLite local como respaldo offline.
      */
     suspend fun getEstudiantes(context: Context? = null): List<User> = withContext(Dispatchers.IO) {
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        if (isOnline(context)) {
             try {
                 val response = apiService.getEstudiantes()
                 if (response.isSuccessful && response.body() != null) {
@@ -239,9 +270,11 @@ class UserRepository(
                         saveUserToSQLite(u)
                     }
                     return@withContext remoteList
+                } else {
+                    Log.e(TAG, "Error HTTP al listar estudiantes [${response.code()}]: ${response.errorBody()?.string()}")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al obtener estudiantes de Render: ${e.message}", e)
             }
         }
         return@withContext getAllUsersLocal().filter { it.isEstudiante }
@@ -274,16 +307,18 @@ class UserRepository(
      * Busca usuario por su ID en Spring Boot o SQLite.
      */
     suspend fun getUserById(userId: Long, context: Context? = null): User? = withContext(Dispatchers.IO) {
-        if (context != null && NetworkUtils.isNetworkAvailable(context)) {
+        if (isOnline(context)) {
             try {
                 val response = apiService.getUsuarioById(userId)
                 if (response.isSuccessful && response.body() != null) {
                     val user = response.body()!!
                     saveUserToSQLite(user)
                     return@withContext user
+                } else {
+                    Log.e(TAG, "Error HTTP al obtener usuario por ID [${response.code()}]: ${response.errorBody()?.string()}")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Fallo de conexión al obtener usuario $userId de Render: ${e.message}", e)
             }
         }
         return@withContext getUserByIdLocal(userId)
@@ -347,11 +382,14 @@ class UserRepository(
     }
 
     /**
-     * Inserta o actualiza un registro de usuario en SQLite local.
+     * Inserta o actualiza un registro de usuario en SQLite local manteniendo sincronizado el ID.
      */
     fun saveUserToSQLite(user: User) {
         val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
+            if (user.id > 0) {
+                put(DatabaseHelper.COLUMN_USER_ID, user.id)
+            }
             put(DatabaseHelper.COLUMN_USER_EMAIL, user.email.trim().lowercase())
             put(DatabaseHelper.COLUMN_USER_PASSWORD, user.password)
             put(DatabaseHelper.COLUMN_USER_FULL_NAME, user.fullName)
@@ -360,7 +398,7 @@ class UserRepository(
             put(DatabaseHelper.COLUMN_USER_IS_FIRST_LOGIN, user.isFirstLogin)
         }
 
-        val existing = getUserByEmail(user.email)
+        val existing = getUserByEmail(user.email) ?: if (user.id > 0) getUserByIdLocal(user.id) else null
         if (existing != null) {
             db.update(
                 DatabaseHelper.TABLE_USERS,
@@ -369,7 +407,7 @@ class UserRepository(
                 arrayOf(existing.id.toString())
             )
         } else {
-            db.insert(DatabaseHelper.TABLE_USERS, null, values)
+            db.insertWithOnConflict(DatabaseHelper.TABLE_USERS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
         }
     }
 
@@ -383,6 +421,8 @@ class UserRepository(
         val isFirstLoginIndex = cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_USER_IS_FIRST_LOGIN)
         val createdAtIndex = cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_USER_CREATED_AT)
 
+        val isFirstLoginInt = cursor.getInt(isFirstLoginIndex)
+
         return User(
             id = cursor.getLong(idIndex),
             email = cursor.getString(emailIndex),
@@ -390,7 +430,7 @@ class UserRepository(
             fullName = cursor.getString(fullNameIndex),
             rut = cursor.getString(rutIndex),
             role = cursor.getString(roleIndex),
-            isFirstLogin = cursor.getInt(isFirstLoginIndex),
+            isFirstLogin = isFirstLoginInt,
             createdAt = cursor.getString(createdAtIndex)
         )
     }

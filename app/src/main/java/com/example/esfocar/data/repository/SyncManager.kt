@@ -1,6 +1,7 @@
 package com.example.esfocar.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.example.esfocar.data.remote.NetworkUtils
 import com.example.esfocar.data.remote.RetrofitClient
 import kotlinx.coroutines.Dispatchers
@@ -8,7 +9,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Gestor de Sincronización para Arquitectura Offline-First.
- * Envía registros pendientes con sincronizado = 0 al servidor Spring Boot (http://10.0.2.2:8080/)
+ * Envía registros pendientes con sincronizado = 0 al servidor Spring Boot en Render (https://esfocar-backend.onrender.com/)
  * y los marca como sincronizado = 1 al recibir respuesta exitosa (HTTP 200).
  */
 class SyncManager(
@@ -16,6 +17,10 @@ class SyncManager(
     private val rubricaRepository: RubricaRepository,
     private val evaluacionRepository: EvaluacionRepository
 ) {
+
+    companion object {
+        private const val TAG = "SyncManager"
+    }
 
     /**
      * Realiza la sincronización total de Documentos, Rúbricas y Evaluaciones hacia Spring Boot.
@@ -41,6 +46,9 @@ class SyncManager(
                         documentRepository.markAsSynced(doc.id)
                         docsSyncedCount++
                     }
+                } else {
+                    val errorMsg = response.errorBody()?.string() ?: ""
+                    Log.e(TAG, "Error HTTP al sincronizar documentos [${response.code()}]: $errorMsg")
                 }
             }
 
@@ -53,6 +61,9 @@ class SyncManager(
                         rubricaRepository.markAsSynced(rubrica.id)
                         rubricasSyncedCount++
                     }
+                } else {
+                    val errorMsg = response.errorBody()?.string() ?: ""
+                    Log.e(TAG, "Error HTTP al sincronizar rúbricas [${response.code()}]: $errorMsg")
                 }
             }
 
@@ -65,6 +76,9 @@ class SyncManager(
                         evaluacionRepository.markAsSynced(eval.id)
                         evalsSyncedCount++
                     }
+                } else {
+                    val errorMsg = response.errorBody()?.string() ?: ""
+                    Log.e(TAG, "Error HTTP al sincronizar evaluaciones [${response.code()}]: $errorMsg")
                 }
             }
 
@@ -77,6 +91,7 @@ class SyncManager(
 
             Result.success(message)
         } catch (e: Exception) {
+            Log.e(TAG, "Fallo en syncAll contra Render: ${e.message}", e)
             Result.failure(Exception("Error al conectar con servidor Spring Boot: ${e.localizedMessage}"))
         }
     }

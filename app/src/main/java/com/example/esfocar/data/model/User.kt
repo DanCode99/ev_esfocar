@@ -4,26 +4,30 @@ import com.google.gson.annotations.SerializedName
 
 /**
  * Modelo de Usuario para la aplicación Esfocar (Fase 2 - Roles Ampliados y Backend Spring Boot).
+ * Alineado exactamente con la entidad `Usuario` de Spring Boot (`com.esfocar.backend.model.Usuario`).
  *
- * @property id Identificador único en SQLite / Backend.
- * @property email Correo electrónico institucional (Login).
+ * @property id Identificador único en SQLite / Backend PostgreSQL.
+ * @property email Correo electrónico institucional (Login / 'correo' en Spring Boot).
  * @property password Contraseña del usuario.
- * @property fullName Nombre completo del usuario.
+ * @property fullName Nombre completo del usuario ('nombre' en Spring Boot).
  * @property rut RUT del usuario (Único).
- * @property role Rol del usuario: "ADMIN", "PROFESOR", "DOCENTE", "INSTRUCTOR", "ESTUDIANTE".
- * @property isFirstLogin Flag de primer inicio de sesión (1: Forzar cambio de clave, 0: Normal).
+ * @property role Rol del usuario ('rol' en Spring Boot): "ADMIN", "PROFESOR", "DOCENTE", "INSTRUCTOR", "ESTUDIANTE".
+ * @property isFirstLogin Flag de primer inicio de sesión (1: Forzar cambio de clave, 0: Normal / 'primerIngreso' en Spring Boot).
  * @property createdAt Fecha de creación del registro.
  */
 data class User(
     @SerializedName("id") val id: Long = 0,
-    @SerializedName("email") val email: String,
+    @SerializedName("correo", alternate = ["email"]) val email: String,
     @SerializedName("password") val password: String,
-    @SerializedName("fullName", alternate = ["full_name", "nombre", "nombreCompleto"]) val fullName: String,
+    @SerializedName("nombre", alternate = ["fullName", "full_name", "nombreCompleto"]) val fullName: String,
     @SerializedName("rut") val rut: String,
-    @SerializedName("role", alternate = ["rol"]) val role: String = ROLE_PROFESOR,
-    @SerializedName("isFirstLogin", alternate = ["is_first_login", "firstLogin"]) val isFirstLogin: Int = 1,
+    @SerializedName("rol", alternate = ["role"]) val role: String = ROLE_PROFESOR,
+    @SerializedName("primerIngreso", alternate = ["isFirstLogin", "is_first_login", "firstLogin"]) val isFirstLogin: Int = 1,
     @SerializedName("createdAt", alternate = ["created_at", "fechaCreacion"]) val createdAt: String = ""
 ) {
+    val primerIngreso: Boolean
+        get() = isFirstLogin != 0
+
     val isAdmin: Boolean
         get() = role == ROLE_ADMIN
 
@@ -34,7 +38,7 @@ data class User(
         get() = role == ROLE_ESTUDIANTE
 
     val requiresPasswordChange: Boolean
-        get() = isFirstLogin == 1
+        get() = isFirstLogin != 0
 
     companion object {
         const val ROLE_ADMIN = "ADMIN"
