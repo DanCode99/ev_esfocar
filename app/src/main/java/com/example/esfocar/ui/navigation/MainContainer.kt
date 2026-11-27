@@ -50,6 +50,7 @@ import com.example.esfocar.ui.screens.DocumentsScreen
 import com.example.esfocar.ui.screens.EditPasswordScreen
 import com.example.esfocar.ui.screens.EvaluateStudentScreen
 import com.example.esfocar.ui.screens.LoginScreen
+import com.example.esfocar.ui.screens.MisNotasScreen
 import com.example.esfocar.ui.screens.RegisterUserScreen
 import com.example.esfocar.ui.screens.SplashScreen
 import com.example.esfocar.ui.screens.StudentDashboardScreen
@@ -150,6 +151,20 @@ fun MainContainer() {
         unselectedTextColor = Color(0xFF5A6F64),
         indicatorColor = Color(0xFFE0F2E9)
     )
+
+    val evaluaciones by evaluacionViewModel.evaluaciones.collectAsState()
+    val isLoading by evaluacionViewModel.isLoading.collectAsState()
+    val errorMessage by evaluacionViewModel.errorMessage.collectAsState()
+
+    currentUser?.let { user ->
+        MisNotasScreen(
+            estudianteId = user.id,
+            evaluaciones = evaluaciones,
+            isLoading = isLoading,
+            errorMessage = errorMessage,
+            onRefresh = { id -> evaluacionViewModel.loadEvaluacionesEstudiante(id) }
+        )
+    }
 
     Scaffold(
         containerColor = Color.White,

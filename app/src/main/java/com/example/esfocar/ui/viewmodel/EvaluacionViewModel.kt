@@ -8,6 +8,7 @@ import com.example.esfocar.data.model.DetalleEvaluacion
 import com.example.esfocar.data.model.Evaluacion
 import com.example.esfocar.data.model.Rubrica
 import com.example.esfocar.data.remote.NetworkUtils
+import com.example.esfocar.data.remote.RetrofitClient.apiService
 import com.example.esfocar.data.repository.EvaluacionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +41,15 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
     private val _notaCalculada = MutableStateFlow(1.00)
     val notaCalculada: StateFlow<Double> = _notaCalculada.asStateFlow()
 
+    private val _evaluaciones = MutableStateFlow<List<Evaluacion>>(emptyList())
+    val evaluaciones: StateFlow<List<Evaluacion>> = _evaluaciones.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
     fun loadEvaluaciones() {
         viewModelScope.launch {
             try {
@@ -50,11 +60,26 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
     }
 
     fun loadEvaluacionesEstudiante(estudianteUserId: Long) {
+        if (estudianteUserId <= 0L) {
+            _evaluacionesList.value = emptyList()
+            _errorMessage.value = "ID de estudiante no válido."
+            return
+        }
+
         viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
             try {
-                evaluacionRepository.fetchEvaluacionesByEstudianteFromRemote(estudianteUserId)
-            } catch (_: Exception) {}
-            _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
+                // Intenta actualizar desde Spring Boot y guarda en SQLite;
+                // si falla o no hay red, el repositorio devuelve lo guardado en SQLite.
+                val evaluaciones = evaluacionRepository.fetchEvaluacionesByEstudianteFromRemote(estudianteUserId)
+                _evaluacionesList.value = evaluaciones
+            } catch (e: Exception) {
+                _errorMessage.value = "Error al cargar calificaciones: ${e.localizedMessage}"
+                _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

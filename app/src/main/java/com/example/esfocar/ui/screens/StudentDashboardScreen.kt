@@ -2,6 +2,7 @@ package com.example.esfocar.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +53,7 @@ import com.example.esfocar.data.model.User
 import com.example.esfocar.ui.viewmodel.DocumentViewModel
 import com.example.esfocar.ui.viewmodel.EvaluacionViewModel
 import com.example.esfocar.ui.viewmodel.RubricaViewModel
+import java.util.Locale
 
 @Composable
 fun StudentDashboardScreen(
@@ -180,10 +182,50 @@ fun StudentDashboardScreen(
                         )
                     }
                 } else {
+                    val promedio = evaluacionesList.map { it.notaFinal }.average()
+
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        // Resumen de Promedio General
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Promedio General",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = "${evaluacionesList.size} evaluación(es) registrada(s)",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF405247)
+                                        )
+                                    }
+                                    Text(
+                                        text = String.format(Locale.US, "%.2f", promedio),
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (promedio >= 4.0) MaterialTheme.colorScheme.primary else Color(0xFFC62828)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Lista de Evaluaciones
                         items(evaluacionesList, key = { it.id }) { eval ->
                             StudentEvaluationCard(eval = eval)
                         }
@@ -280,6 +322,8 @@ fun StudentDashboardScreen(
 
 @Composable
 fun StudentEvaluationCard(eval: Evaluacion) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -287,7 +331,8 @@ fun StudentEvaluationCard(eval: Evaluacion) {
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(14.dp)
-            ),
+            )
+            .clickable { expanded = !expanded },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -303,26 +348,28 @@ fun StudentEvaluationCard(eval: Evaluacion) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = eval.rubricaTitulo,
+                        text = eval.rubricaTitulo.ifBlank { "Evaluación #${eval.id}" },
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Color(0xFF405247),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Evaluador: ${eval.evaluadorNombre}",
-                            fontSize = 12.sp,
-                            color = Color(0xFF405247)
-                        )
+                    if (eval.evaluadorNombre.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color(0xFF405247),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Evaluador: ${eval.evaluadorNombre}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF405247)
+                            )
+                        }
                     }
                 }
 
@@ -336,7 +383,7 @@ fun StudentEvaluationCard(eval: Evaluacion) {
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = String.format("%.2f", eval.notaFinal),
+                        text = String.format(Locale.US, "%.2f", eval.notaFinal),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -354,19 +401,63 @@ fun StudentEvaluationCard(eval: Evaluacion) {
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.CalendarToday,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+            // Desglose de criterios al tocar la tarjeta
+            if (expanded && eval.detalles.isNotEmpty()) {
+                HorizontalDivider(color = Color(0xFFD0E2D7))
                 Text(
-                    text = "Fecha: ${eval.fechaEvaluacion}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF405247)
+                    text = "Desglose por Criterio:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+                eval.detalles.forEach { det ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${det.criterioNombre} (${det.porcentaje.toInt()}%)",
+                            fontSize = 12.sp,
+                            color = Color(0xFF111C16),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${det.puntajeObtenido} / ${det.puntajeMaximo}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Fecha: ${eval.fechaEvaluacion}",
+                        fontSize = 11.sp,
+                        color = Color(0xFF405247)
+                    )
+                }
+                if (eval.detalles.isNotEmpty()) {
+                    Text(
+                        text = if (expanded) "Ocultar criterios ▲" else "Ver criterios ▼",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
