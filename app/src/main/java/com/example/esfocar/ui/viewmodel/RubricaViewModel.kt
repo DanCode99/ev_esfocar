@@ -123,6 +123,17 @@ class RubricaViewModel(private val rubricaRepository: RubricaRepository) : ViewM
         }
     }
 
+    fun deleteRubrica(context: Context, rubrica: Rubrica) {
+        viewModelScope.launch {
+            try {
+                rubricaRepository.deleteRubrica(rubrica.id, context)
+                loadRubricas()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun resetState() {
         _rubricaState.value = RubricaState.Idle
     }

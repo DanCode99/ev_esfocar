@@ -56,7 +56,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import com.example.esfocar.data.model.CriterioRubrica
+import com.example.esfocar.data.model.Rubrica
 import com.example.esfocar.data.model.User
 import com.example.esfocar.ui.viewmodel.RubricaState
 import com.example.esfocar.ui.viewmodel.RubricaViewModel
@@ -87,7 +90,13 @@ fun CreateRubricScreen(
     }
 
     val rubricaState by rubricaViewModel.rubricaState.collectAsState()
+    val rubricasList by rubricaViewModel.rubricasList.collectAsState()
+    var rubricaToDelete by remember { mutableStateOf<Rubrica?>(null) }
     val scrollState = rememberScrollState()
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        rubricaViewModel.loadRubricas()
+    }
 
     // Animación de desplazamiento hacia arriba al publicar o al ocurrir un error
     androidx.compose.runtime.LaunchedEffect(rubricaState) {
@@ -460,5 +469,144 @@ fun CreateRubricScreen(
                 }
             }
         }
+
+        // ===============================================
+        // SECCIÓN 2: LISTA DE RÚBRICAS REGISTRADAS
+        // ===============================================
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(16.dp)
+                ),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F8F5)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "2. Rúbricas Registradas (${rubricasList.size})",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                if (rubricasList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No hay rúbricas registradas en el sistema.",
+                            color = Color(0xFF405247),
+                            fontSize = 13.sp
+                        )
+                    }
+                } else {
+                    rubricasList.forEach { rubrica ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, Color(0xFFD0E2D7), RoundedCornerShape(12.dp)),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = rubrica.titulo,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        if (rubrica.descripcion.isNotBlank()) {
+                                            Text(
+                                                text = rubrica.descripcion,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF405247)
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { rubricaToDelete = rubrica },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Eliminar Rúbrica",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                HorizontalDivider(color = Color(0xFFE0E0E0))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${rubrica.criterios.size} criterios evaluativos",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF111C16)
+                                    )
+                                    Text(
+                                        text = "Creador: ${rubrica.creadorNombre}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Diálogo de Confirmación para Eliminar Rúbrica (Nube Render + SQLite Local)
+    rubricaToDelete?.let { rub ->
+        AlertDialog(
+            onDismissRequest = { rubricaToDelete = null },
+            icon = { Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text(text = "Eliminar Rúbrica") },
+            text = { Text(text = "¿Está seguro que desea eliminar la rúbrica '${rub.titulo}'?\n\nEsta acción eliminará la rúbrica del servidor en la nube (Render) y de la base de datos local.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        rubricaViewModel.deleteRubrica(context, rub)
+                        rubricaToDelete = null
+                    }
+                ) {
+                    Text(text = "ELIMINAR", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { rubricaToDelete = null }) {
+                    Text(text = "CANCELAR")
+                }
+            }
+        )
     }
 }

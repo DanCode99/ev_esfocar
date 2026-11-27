@@ -1,6 +1,7 @@
 package com.example.esfocar.data.repository
 
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
 import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
@@ -123,9 +124,7 @@ class RubricaRepository(
             if (response.isSuccessful && response.body() != null) {
                 val remoteRubricas = response.body()!!
                 for (rub in remoteRubricas) {
-                    if (getRubricaById(rub.id) == null) {
-                        insertRubrica(rub, offline = false)
-                    }
+                    insertRubrica(rub, offline = false)
                 }
                 return@withContext remoteRubricas
             } else {
@@ -135,6 +134,32 @@ class RubricaRepository(
             Log.e(TAG, "Excepción de red al listar rúbricas de Render: ${e.message}", e)
         }
         return@withContext getAllRubricas()
+    }
+
+    /**
+     * Elimina una rúbrica tanto en Spring Boot Render como en la base de datos SQLite local.
+     */
+    suspend fun deleteRubrica(id: Long, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
+        if (context == null || com.example.esfocar.data.remote.NetworkUtils.isNetworkAvailable(context)) {
+            try {
+                val response = apiService.deleteRubrica(id)
+                if (response.isSuccessful) {
+                    Log.d(TAG, "Rúbrica $id eliminada exitosamente de Render.")
+                } else {
+                    Log.e(TAG, "Error HTTP al eliminar rúbrica $id en Render [${response.code()}]: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Excepción al eliminar rúbrica $id en Render: ${e.message}", e)
+            }
+        }
+
+        val db = dbHelper.writableDatabase
+        val rowsDeleted = db.delete(
+            DatabaseHelper.TABLE_RUBRICAS,
+            "${DatabaseHelper.COLUMN_RUBRICA_ID} = ?",
+            arrayOf(id.toString())
+        )
+        return@withContext rowsDeleted > 0
     }
 
     /**

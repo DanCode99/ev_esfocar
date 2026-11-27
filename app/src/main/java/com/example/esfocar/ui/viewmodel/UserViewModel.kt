@@ -147,6 +147,13 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         return true
     }
 
+    fun deleteUser(userId: Long, context: Context? = null) {
+        viewModelScope.launch {
+            userRepository.deleteUser(userId, context)
+            loadUsers(context)
+        }
+    }
+
     fun resetUpdateState() {
         _updateState.value = UpdateUserState.Idle
     }

@@ -51,6 +51,9 @@ class EvaluacionViewModel(private val evaluacionRepository: EvaluacionRepository
 
     fun loadEvaluacionesEstudiante(estudianteUserId: Long) {
         viewModelScope.launch {
+            try {
+                evaluacionRepository.fetchEvaluacionesByEstudianteFromRemote(estudianteUserId)
+            } catch (_: Exception) {}
             _evaluacionesList.value = evaluacionRepository.getEvaluacionesByEstudiante(estudianteUserId)
         }
     }

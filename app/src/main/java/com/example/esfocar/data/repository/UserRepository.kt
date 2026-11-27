@@ -233,6 +233,32 @@ class UserRepository(
     }
 
     /**
+     * Elimina un usuario tanto en Spring Boot Render como en la base de datos SQLite local.
+     */
+    suspend fun deleteUser(userId: Long, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
+        if (isOnline(context)) {
+            try {
+                val response = apiService.deleteUsuario(userId)
+                if (response.isSuccessful) {
+                    Log.d(TAG, "Usuario $userId eliminado exitosamente de Render.")
+                } else {
+                    Log.e(TAG, "Error HTTP al eliminar usuario $userId en Render [${response.code()}]: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Excepción al eliminar usuario $userId en Render: ${e.message}", e)
+            }
+        }
+
+        val db = dbHelper.writableDatabase
+        val rowsDeleted = db.delete(
+            DatabaseHelper.TABLE_USERS,
+            "${DatabaseHelper.COLUMN_USER_ID} = ?",
+            arrayOf(userId.toString())
+        )
+        return@withContext rowsDeleted > 0
+    }
+
+    /**
      * Obtiene todos los usuarios consultando primero a Render (GET /api/usuarios)
      * y actualizando SQLite local como respaldo offline.
      */

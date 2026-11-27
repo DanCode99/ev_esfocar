@@ -143,7 +143,27 @@ class EvaluacionRepository(
     }
 
     /**
-     * Obtiene la lista de evaluaciones asignadas a un estudiante específico.
+     * Consulta las evaluaciones de un estudiante específico desde Render (GET /api/evaluaciones/estudiante/{id})
+     * y actualiza el respaldo local.
+     */
+    suspend fun fetchEvaluacionesByEstudianteFromRemote(estudianteUserId: Long): List<Evaluacion> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getEvaluacionesByEstudiante(estudianteUserId)
+            if (response.isSuccessful && response.body() != null) {
+                val remoteEvals = response.body()!!
+                for (ev in remoteEvals) {
+                    insertEvaluacion(ev, offline = false)
+                }
+                return@withContext remoteEvals
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción de red al obtener evaluaciones del estudiante $estudianteUserId: ${e.message}", e)
+        }
+        return@withContext getEvaluacionesByEstudiante(estudianteUserId)
+    }
+
+    /**
+     * Obtiene la lista de evaluaciones asignadas a un estudiante específico desde SQLite.
      */
     fun getEvaluacionesByEstudiante(estudianteUserId: Long): List<Evaluacion> {
         val list = mutableListOf<Evaluacion>()

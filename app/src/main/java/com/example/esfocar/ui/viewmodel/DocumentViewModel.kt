@@ -45,7 +45,7 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
     private val _selectedFileSize = MutableStateFlow<Long>(0L)
     val selectedFileSize: StateFlow<Long> = _selectedFileSize.asStateFlow()
 
-    fun loadDocuments() {
+    fun loadDocuments(context: Context? = null) {
         viewModelScope.launch {
             try {
                 documentRepository.fetchDocumentsFromRemote()
@@ -142,21 +142,23 @@ class DocumentViewModel(private val documentRepository: DocumentRepository) : Vi
         }
     }
 
-    fun deleteDocument(document: DocumentItem) {
-        try {
-            // 1. Borrar archivo físico del dispositivo
-            val file = File(document.filePath)
-            if (file.exists()) {
-                file.delete()
-            }
+    fun deleteDocument(context: Context, document: DocumentItem) {
+        viewModelScope.launch {
+            try {
+                // 1. Borrar archivo físico local si existe
+                if (document.filePath.isNotBlank()) {
+                    val file = File(document.filePath)
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                }
 
-            // 2. Borrar registro de la base de datos SQLite
-            val deleted = documentRepository.deleteDocument(document.id)
-            if (deleted) {
-                loadDocuments()
+                // 2. Borrar registro de la nube en Render y SQLite local
+                documentRepository.deleteDocument(document.id, context)
+                loadDocuments(context)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 

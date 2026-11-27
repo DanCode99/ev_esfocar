@@ -1,11 +1,14 @@
 package com.example.esfocar.data.repository
 
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.example.esfocar.data.db.DatabaseHelper
 import com.example.esfocar.data.model.DocumentItem
 import com.example.esfocar.data.remote.EsfocarApiService
+import com.example.esfocar.data.remote.NetworkUtils
 import com.example.esfocar.data.remote.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,7 +26,27 @@ class DocumentRepository(
     }
 
     /**
-     * Guarda el registro de un nuevo documento en la base de datos SQLite.
+     * Limpia duplicados en SQLite (mantiene la primera versión guardada por título y nombre de archivo).
+     */
+    fun cleanDuplicateDocuments() {
+        try {
+            val db = dbHelper.writableDatabase
+            val cleanupQuery = """
+                DELETE FROM ${DatabaseHelper.TABLE_DOCUMENTS}
+                WHERE ${DatabaseHelper.COLUMN_DOC_ID} NOT IN (
+                    SELECT MIN(${DatabaseHelper.COLUMN_DOC_ID})
+                    FROM ${DatabaseHelper.TABLE_DOCUMENTS}
+                    GROUP BY ${DatabaseHelper.COLUMN_DOC_TITLE}, ${DatabaseHelper.COLUMN_DOC_FILE_NAME}
+                )
+            """.trimIndent()
+            db.execSQL(cleanupQuery)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al limpiar documentos duplicados: ${e.message}")
+        }
+    }
+
+    /**
+     * Guarda o actualiza el registro de un documento en la base de datos SQLite.
      * @param offline Si es true, establece sincronizado = 0; si es false, sincronizado = 1.
      */
     fun insertDocument(document: DocumentItem, offline: Boolean = false): Long {
@@ -31,6 +54,9 @@ class DocumentRepository(
         val syncValue = if (offline) 0 else 1
 
         val values = ContentValues().apply {
+            if (document.id > 0) {
+                put(DatabaseHelper.COLUMN_DOC_ID, document.id)
+            }
             put(DatabaseHelper.COLUMN_DOC_TITLE, document.title.trim())
             put(DatabaseHelper.COLUMN_DOC_FILE_NAME, document.fileName)
             put(DatabaseHelper.COLUMN_DOC_FILE_PATH, document.filePath)
@@ -40,7 +66,7 @@ class DocumentRepository(
             put(DatabaseHelper.COLUMN_DOC_UPLOADED_BY, document.uploadedByUserId)
             put(DatabaseHelper.COLUMN_DOC_SINCRONIZADO, syncValue)
         }
-        return db.insert(DatabaseHelper.TABLE_DOCUMENTS, null, values)
+        return db.insertWithOnConflict(DatabaseHelper.TABLE_DOCUMENTS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     /**
@@ -96,10 +122,9 @@ class DocumentRepository(
             val response = apiService.getDocumentos()
             if (response.isSuccessful && response.body() != null) {
                 val remoteDocs = response.body()!!
+                cleanDuplicateDocuments()
                 for (doc in remoteDocs) {
-                    if (getDocumentById(doc.id) == null) {
-                        insertDocument(doc, offline = false)
-                    }
+                    insertDocument(doc, offline = false)
                 }
                 return@withContext remoteDocs
             } else {
@@ -108,6 +133,7 @@ class DocumentRepository(
         } catch (e: Exception) {
             Log.e(TAG, "Excepción de red al listar documentos de Render: ${e.message}", e)
         }
+        cleanDuplicateDocuments()
         return@withContext getAllDocuments()
     }
 
@@ -173,16 +199,31 @@ class DocumentRepository(
     }
 
     /**
-     * Elimina el registro de un documento de SQLite por ID.
+     * Elimina el registro de un documento tanto del backend Spring Boot en la nube como de SQLite local.
      */
-    fun deleteDocument(id: Long): Boolean {
+    suspend fun deleteDocument(id: Long, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
+        // 1. Intentar eliminar en el backend Render si hay conexión
+        if (context == null || NetworkUtils.isNetworkAvailable(context)) {
+            try {
+                val response = apiService.deleteDocumento(id)
+                if (response.isSuccessful) {
+                    Log.d(TAG, "Documento $id eliminado exitosamente del servidor Render.")
+                } else {
+                    Log.e(TAG, "Error HTTP al eliminar documento $id en Render [${response.code()}]: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Excepción al eliminar documento $id en Render: ${e.message}", e)
+            }
+        }
+
+        // 2. Eliminar de SQLite local
         val db = dbHelper.writableDatabase
         val rowsDeleted = db.delete(
             DatabaseHelper.TABLE_DOCUMENTS,
             "${DatabaseHelper.COLUMN_DOC_ID} = ?",
             arrayOf(id.toString())
         )
-        return rowsDeleted > 0
+        return@withContext rowsDeleted > 0
     }
 
     private fun cursorToDocument(cursor: Cursor): DocumentItem {

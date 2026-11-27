@@ -507,11 +507,11 @@ fun DocumentsScreen(
             onDismissRequest = { documentToDelete = null },
             icon = { Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
             title = { Text(text = "Eliminar Documento") },
-            text = { Text(text = "¿Está seguro que desea eliminar '${doc.title}'?\n\nEsta acción eliminará la entrada en SQLite y el archivo físico del almacenamiento local.") },
+            text = { Text(text = "¿Está seguro que desea eliminar '${doc.title}'?\n\nEsta acción eliminará el documento del servidor en la nube y del almacenamiento local.") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        documentViewModel.deleteDocument(doc)
+                        documentViewModel.deleteDocument(context, doc)
                         documentToDelete = null
                     }
                 ) {

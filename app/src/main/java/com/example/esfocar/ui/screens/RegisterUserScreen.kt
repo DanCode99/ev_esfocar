@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Group
@@ -113,12 +114,23 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
     // Estados de acordeón / desplegables (CERRADOS POR DEFECTO)
     var isRegisterFormExpanded by remember { mutableStateOf(false) }
     var isUserListExpanded by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val updateState by userViewModel.updateState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     var userToEdit by remember { mutableStateOf<User?>(null) }
+    var userToDelete by remember { mutableStateOf<User?>(null) }
 
     val registerState by userViewModel.registerState.collectAsState()
     val usersList by userViewModel.usersList.collectAsState()
+
+    LaunchedEffect(registerState) {
+        if (registerState is RegisterUserState.Success) {
+            password = ""
+            fullName = ""
+            rut = ""
+            email = ""
+        }
+    }
 
     val rolesList = listOf(
         User.ROLE_ESTUDIANTE,
@@ -517,19 +529,14 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
 
                         Button(
                             onClick = {
-                                val success = userViewModel.registerUser(
+                                userViewModel.registerUser(
                                     tempPassword = password,
                                     fullName = fullName,
                                     rut = rut,
                                     email = email,
-                                    role = role
+                                    role = role,
+                                    context = context
                                 )
-                                if (success) {
-                                    password = ""
-                                    fullName = ""
-                                    rut = ""
-                                    email = ""
-                                }
                             },
                             enabled = registerState !is RegisterUserState.Loading,
                             modifier = Modifier
@@ -702,6 +709,21 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
+
+                                        // Botón de Eliminar
+                                        IconButton(
+                                            onClick = { userToDelete = user },
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(Color(0xFFFFEBEE), RoundedCornerShape(6.dp))
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Eliminar",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
 
@@ -714,5 +736,30 @@ fun RegisterUserScreen(userViewModel: UserViewModel, authViewModel: AuthViewMode
                 }
             }
         }
+    }
+
+    // Diálogo de Confirmación para Eliminar Usuario
+    userToDelete?.let { usr ->
+        AlertDialog(
+            onDismissRequest = { userToDelete = null },
+            icon = { Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text(text = "Eliminar Usuario") },
+            text = { Text(text = "¿Está seguro que desea eliminar a '${usr.fullName}'?\n\nEsta acción eliminará el usuario de la nube (Render) y de la base de datos local.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        userViewModel.deleteUser(usr.id, context)
+                        userToDelete = null
+                    }
+                ) {
+                    Text(text = "ELIMINAR", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToDelete = null }) {
+                    Text(text = "CANCELAR")
+                }
+            }
+        )
     }
 }
