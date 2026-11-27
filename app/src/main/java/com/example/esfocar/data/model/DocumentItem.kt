@@ -1,9 +1,11 @@
 package com.example.esfocar.data.model
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * Modelo de documento almacenado en la aplicación Esfocar.
  *
- * @property id Identificador único en SQLite.
+ * @property id Identificador único en SQLite / Backend.
  * @property title Título asignado al documento.
  * @property fileName Nombre original del archivo.
  * @property filePath Ruta absoluta del archivo guardado en el almacenamiento local del dispositivo.
@@ -14,15 +16,15 @@ package com.example.esfocar.data.model
  * @property uploadedByName Nombre completo o username del usuario creador.
  */
 data class DocumentItem(
-    val id: Long = 0,
-    val title: String,
-    val fileName: String,
-    val filePath: String,
-    val fileType: String,
-    val fileSize: Long,
-    val uploadDate: String,
-    val uploadedByUserId: Long,
-    val uploadedByName: String = ""
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("title", alternate = ["titulo"]) val title: String,
+    @SerializedName("fileName", alternate = ["file_name", "nombreArchivo"]) val fileName: String,
+    @SerializedName("filePath", alternate = ["file_path", "rutaArchivo"]) val filePath: String,
+    @SerializedName("fileType", alternate = ["file_type", "tipoArchivo"]) val fileType: String,
+    @SerializedName("fileSize", alternate = ["file_size", "tamanoArchivo"]) val fileSize: Long,
+    @SerializedName("uploadDate", alternate = ["upload_date", "fechaSubida"]) val uploadDate: String,
+    @SerializedName("uploadedByUserId", alternate = ["uploaded_by_user_id", "usuarioId"]) val uploadedByUserId: Long,
+    @SerializedName("uploadedByName", alternate = ["uploaded_by_name", "nombreUsuario"]) val uploadedByName: String = ""
 ) {
     val formattedSize: String
         get() {

@@ -1,12 +1,15 @@
 package com.example.esfocar.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.esfocar.data.model.User
 import com.example.esfocar.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 sealed class RegisterUserState {
     object Idle : RegisterUserState()
@@ -37,8 +40,10 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         loadUsers()
     }
 
-    fun loadUsers() {
-        _usersList.value = userRepository.getAllUsers()
+    fun loadUsers(context: Context? = null) {
+        viewModelScope.launch {
+            _usersList.value = userRepository.getAllUsers(context)
+        }
     }
 
     fun registerUser(
@@ -46,7 +51,8 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         fullName: String,
         rut: String,
         email: String,
-        role: String
+        role: String,
+        context: Context? = null
     ): Boolean {
         val emailTrimmed = email.trim()
         if (emailTrimmed.isBlank() || !emailTrimmed.contains("@") || !emailTrimmed.substringAfter("@").contains(".")) {
@@ -74,25 +80,34 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
             fullName = fullName,
             rut = rut.trim().uppercase(),
             role = role,
-            isFirstLogin = 1 // Debe cambiar su clave en primer inicio
+            isFirstLogin = 1
         )
 
-        val result = userRepository.createUser(newUser)
-        return result.fold(
-            onSuccess = {
-                _registerState.value = RegisterUserState.Success("Usuario '${newUser.fullName}' creado con éxito.")
-                loadUsers()
-                true
-            },
-            onFailure = { ex ->
-                _registerState.value = RegisterUserState.Error(ex.message ?: "Error al registrar el usuario.")
-                false
-            }
-        )
+        viewModelScope.launch {
+            val result = userRepository.createUser(context, newUser)
+            result.fold(
+                onSuccess = {
+                    _registerState.value = RegisterUserState.Success("Usuario '${newUser.fullName}' creado con éxito en Spring Boot y respaldado en SQLite.")
+                    loadUsers(context)
+                },
+                onFailure = { ex ->
+                    _registerState.value = RegisterUserState.Error(ex.message ?: "Error al registrar el usuario.")
+                }
+            )
+        }
+        return true
     }
 
-    fun updateUser(userId: Long, fullName: String, rut: String, email: String, role: String): Boolean {
-        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+    fun updateUser(
+        userId: Long,
+        fullName: String,
+        rut: String,
+        email: String,
+        role: String,
+        context: Context? = null
+    ): Boolean {
+        val emailTrimmed = email.trim()
+        if (emailTrimmed.isBlank() || !emailTrimmed.contains("@") || !emailTrimmed.substringAfter("@").contains(".")) {
             _updateState.value = UpdateUserState.Error("Ingrese un correo electrónico válido.")
             return false
         }
@@ -106,19 +121,20 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         }
 
         _updateState.value = UpdateUserState.Loading
-        val result = userRepository.updateUser(userId, fullName, rut, email, role)
 
-        return result.fold(
-            onSuccess = {
-                _updateState.value = UpdateUserState.Success("Usuario actualizado con éxito.")
-                loadUsers()
-                true
-            },
-            onFailure = { ex ->
-                _updateState.value = UpdateUserState.Error(ex.message ?: "Error al actualizar.")
-                false
-            }
-        )
+        viewModelScope.launch {
+            val result = userRepository.updateUser(context, userId, fullName, rut, email, role)
+            result.fold(
+                onSuccess = {
+                    _updateState.value = UpdateUserState.Success("Usuario actualizado con éxito.")
+                    loadUsers(context)
+                },
+                onFailure = { ex ->
+                    _updateState.value = UpdateUserState.Error(ex.message ?: "Error al actualizar.")
+                }
+            )
+        }
+        return true
     }
 
     fun resetUpdateState() {

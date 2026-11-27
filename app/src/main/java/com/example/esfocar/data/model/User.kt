@@ -1,7 +1,9 @@
 package com.example.esfocar.data.model
 
+import com.google.gson.annotations.SerializedName
+
 /**
- * Modelo de Usuario para la aplicación Esfocar (Fase 2 - Roles Ampliados).
+ * Modelo de Usuario para la aplicación Esfocar (Fase 2 - Roles Ampliados y Backend Spring Boot).
  *
  * @property id Identificador único en SQLite / Backend.
  * @property email Correo electrónico institucional (Login).
@@ -13,14 +15,14 @@ package com.example.esfocar.data.model
  * @property createdAt Fecha de creación del registro.
  */
 data class User(
-    val id: Long = 0,
-    val email: String,
-    val password: String,
-    val fullName: String,
-    val rut: String,
-    val role: String = ROLE_PROFESOR,
-    val isFirstLogin: Int = 1,
-    val createdAt: String = ""
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("email") val email: String,
+    @SerializedName("password") val password: String,
+    @SerializedName("fullName", alternate = ["full_name", "nombre", "nombreCompleto"]) val fullName: String,
+    @SerializedName("rut") val rut: String,
+    @SerializedName("role", alternate = ["rol"]) val role: String = ROLE_PROFESOR,
+    @SerializedName("isFirstLogin", alternate = ["is_first_login", "firstLogin"]) val isFirstLogin: Int = 1,
+    @SerializedName("createdAt", alternate = ["created_at", "fechaCreacion"]) val createdAt: String = ""
 ) {
     val isAdmin: Boolean
         get() = role == ROLE_ADMIN

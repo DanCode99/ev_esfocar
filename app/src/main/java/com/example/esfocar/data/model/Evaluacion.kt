@@ -1,5 +1,6 @@
 package com.example.esfocar.data.model
 
+import com.google.gson.annotations.SerializedName
 import kotlin.math.floor
 
 /**
@@ -14,13 +15,13 @@ import kotlin.math.floor
  * @property porcentaje Peso porcentual del criterio dentro de la rúbrica (0 a 100%).
  */
 data class DetalleEvaluacion(
-    val id: Long = 0,
-    val evaluacionId: Long = 0,
-    val criterioId: Long,
-    val criterioNombre: String = "",
-    val puntajeObtenido: Double,
-    val puntajeMaximo: Double,
-    val porcentaje: Double
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("evaluacionId", alternate = ["evaluacion_id"]) val evaluacionId: Long = 0,
+    @SerializedName("criterioId", alternate = ["criterio_id"]) val criterioId: Long,
+    @SerializedName("criterioNombre", alternate = ["criterio_nombre"]) val criterioNombre: String = "",
+    @SerializedName("puntajeObtenido", alternate = ["puntaje_obtenido"]) val puntajeObtenido: Double,
+    @SerializedName("puntajeMaximo", alternate = ["puntaje_maximo"]) val puntajeMaximo: Double,
+    @SerializedName("porcentaje") val porcentaje: Double
 )
 
 /**
@@ -40,18 +41,18 @@ data class DetalleEvaluacion(
  * @property sincronizado 1: Sincronizado con backend Spring Boot, 0: Almacenado offline en SQLite.
  */
 data class Evaluacion(
-    val id: Long = 0,
-    val rubricaId: Long,
-    val rubricaTitulo: String = "",
-    val estudianteUserId: Long,
-    val estudianteNombre: String = "",
-    val evaluadorUserId: Long,
-    val evaluadorNombre: String = "",
-    val notaFinal: Double,
-    val observacion: String = "",
-    val detalles: List<DetalleEvaluacion> = emptyList(),
-    val fechaEvaluacion: String = "",
-    val sincronizado: Int = 1
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("rubricaId", alternate = ["rubrica_id"]) val rubricaId: Long,
+    @SerializedName("rubricaTitulo", alternate = ["rubrica_titulo"]) val rubricaTitulo: String = "",
+    @SerializedName("estudianteUserId", alternate = ["estudiante_user_id", "estudianteId"]) val estudianteUserId: Long,
+    @SerializedName("estudianteNombre", alternate = ["estudiante_nombre"]) val estudianteNombre: String = "",
+    @SerializedName("evaluadorUserId", alternate = ["evaluador_user_id", "evaluadorId"]) val evaluadorUserId: Long,
+    @SerializedName("evaluadorNombre", alternate = ["evaluador_nombre"]) val evaluadorNombre: String = "",
+    @SerializedName("notaFinal", alternate = ["nota_final", "nota"]) val notaFinal: Double,
+    @SerializedName("observacion", alternate = ["comments"]) val observacion: String = "",
+    @SerializedName("detalles", alternate = ["details"]) val detalles: List<DetalleEvaluacion> = emptyList(),
+    @SerializedName("fechaEvaluacion", alternate = ["fecha_evaluacion", "fecha"]) val fechaEvaluacion: String = "",
+    @SerializedName("sincronizado") val sincronizado: Int = 1
 ) {
     companion object {
         /**

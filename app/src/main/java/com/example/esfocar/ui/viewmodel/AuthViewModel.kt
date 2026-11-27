@@ -1,12 +1,15 @@
 package com.example.esfocar.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.esfocar.data.model.User
 import com.example.esfocar.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -24,7 +27,7 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    fun login(emailInput: String, passwordInput: String) {
+    fun login(emailInput: String, passwordInput: String, context: Context? = null) {
         if (emailInput.isBlank()) {
             _authState.value = AuthState.Error("Por favor, ingrese su correo institucional.")
             return
@@ -41,20 +44,26 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
 
         _authState.value = AuthState.Loading
 
-        val user = userRepository.authenticate(emailInput, passwordInput)
-        if (user != null) {
-            _currentUser.value = user
-            if (user.requiresPasswordChange) {
-                _authState.value = AuthState.RequiresPasswordChange(user)
-            } else {
-                _authState.value = AuthState.Authenticated(user)
+        viewModelScope.launch {
+            try {
+                val user = userRepository.authenticate(context, emailInput, passwordInput)
+                if (user != null) {
+                    _currentUser.value = user
+                    if (user.requiresPasswordChange) {
+                        _authState.value = AuthState.RequiresPasswordChange(user)
+                    } else {
+                        _authState.value = AuthState.Authenticated(user)
+                    }
+                } else {
+                    _authState.value = AuthState.Error("Credenciales incorrectas. Verifique su correo y contraseña.")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Error al conectar con servidor: ${e.localizedMessage}")
             }
-        } else {
-            _authState.value = AuthState.Error("Credenciales incorrectas. Verifique su correo y contraseña.")
         }
     }
 
-    fun changePassword(newPasswordInput: String, confirmPasswordInput: String) {
+    fun changePassword(newPasswordInput: String, confirmPasswordInput: String, context: Context? = null) {
         val user = _currentUser.value ?: run {
             _authState.value = AuthState.Error("No hay una sesión activa para cambiar la clave.")
             return
@@ -77,11 +86,19 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
             return
         }
 
-        val success = userRepository.updatePassword(user.id, newPasswordInput)
-        if (success) {
-            refreshCurrentUser()
-        } else {
-            _authState.value = AuthState.Error("Error al actualizar la contraseña en la base de datos.")
+        _authState.value = AuthState.Loading
+
+        viewModelScope.launch {
+            try {
+                val success = userRepository.updatePassword(context, user.id, newPasswordInput)
+                if (success) {
+                    refreshCurrentUser(context)
+                } else {
+                    _authState.value = AuthState.Error("Error al actualizar la contraseña.")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Error al cambiar contraseña: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -96,20 +113,21 @@ class AuthViewModel(private val userRepository: UserRepository) : ViewModel() {
         }
     }
 
-    /*
-    * Refresca los datos del usuario en sesión actual.
-    * Útil cuando el administrador modifica su propio perfil.
-    */
-    fun refreshCurrentUser() {
+    /**
+     * Refresca los datos del usuario en sesión actual.
+     */
+    fun refreshCurrentUser(context: Context? = null) {
         val currentId = _currentUser.value?.id ?: return
-        val updatedUser = userRepository.getUserById(currentId)
-        if (updatedUser != null) {
-            _currentUser.value = updatedUser
-            val currentState = _authState.value
-            if (currentState is AuthState.Authenticated) {
-                _authState.value = AuthState.Authenticated(updatedUser)
-            } else if (currentState is AuthState.RequiresPasswordChange) {
-                _authState.value = AuthState.RequiresPasswordChange(updatedUser)
+        viewModelScope.launch {
+            val updatedUser = userRepository.getUserById(currentId, context)
+            if (updatedUser != null) {
+                _currentUser.value = updatedUser
+                val currentState = _authState.value
+                if (currentState is AuthState.Authenticated) {
+                    _authState.value = AuthState.Authenticated(updatedUser)
+                } else if (currentState is AuthState.RequiresPasswordChange) {
+                    _authState.value = AuthState.RequiresPasswordChange(updatedUser)
+                }
             }
         }
     }

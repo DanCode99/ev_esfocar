@@ -1,5 +1,6 @@
 package com.example.esfocar.data.model
 
+import com.google.gson.annotations.SerializedName
 import kotlin.math.abs
 
 /**
@@ -13,12 +14,12 @@ import kotlin.math.abs
  * @property porcentaje Peso porcentual dentro de la rúbrica (ej: 30.0 para 30%).
  */
 data class CriterioRubrica(
-    val id: Long = 0,
-    val rubricaId: Long = 0,
-    val nombre: String,
-    val descripcion: String,
-    val puntajeMaximo: Double,
-    val porcentaje: Double
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("rubricaId", alternate = ["rubrica_id"]) val rubricaId: Long = 0,
+    @SerializedName("nombre", alternate = ["name"]) val nombre: String,
+    @SerializedName("descripcion", alternate = ["description"]) val descripcion: String,
+    @SerializedName("puntajeMaximo", alternate = ["puntaje_maximo", "maxScore"]) val puntajeMaximo: Double,
+    @SerializedName("porcentaje", alternate = ["percentage", "peso"]) val porcentaje: Double
 )
 
 /**
@@ -34,14 +35,14 @@ data class CriterioRubrica(
  * @property fechaCreacion Marca de tiempo de registro.
  */
 data class Rubrica(
-    val id: Long = 0,
-    val titulo: String,
-    val descripcion: String,
-    val criterios: List<CriterioRubrica> = emptyList(),
-    val creadorUserId: Long,
-    val creadorNombre: String = "",
-    val sincronizado: Int = 1,
-    val fechaCreacion: String = ""
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("titulo", alternate = ["title"]) val titulo: String,
+    @SerializedName("descripcion", alternate = ["description"]) val descripcion: String,
+    @SerializedName("criterios", alternate = ["criteria"]) val criterios: List<CriterioRubrica> = emptyList(),
+    @SerializedName("creadorUserId", alternate = ["creador_user_id", "creadorId"]) val creadorUserId: Long,
+    @SerializedName("creadorNombre", alternate = ["creador_nombre"]) val creadorNombre: String = "",
+    @SerializedName("sincronizado") val sincronizado: Int = 1,
+    @SerializedName("fechaCreacion", alternate = ["fecha_creacion", "createdAt"]) val fechaCreacion: String = ""
 ) {
     /**
      * Suma total de los porcentajes de todos sus criterios. Debe ser exactamente 100%.
